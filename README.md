@@ -45,7 +45,7 @@ Une seule fois :
 
 1. Base et utilisateur dédiés dans le PostgreSQL natif : `CREATE USER wowcarto PASSWORD '…'; CREATE DATABASE wowcarto OWNER wowcarto;`
 2. `git clone` du dépôt dans `/opt/wow-carto`, puis créer `/opt/wow-carto/.env` à partir de `.env.example` (droits 600).
-3. Copier `deploy/wowforever.conf` dans `/etc/caddy/`, ajouter `import wowforever.conf` au Caddyfile, `caddy validate` puis `systemctl reload caddy`.
+3. Copier `deploy/wowforever.conf` dans `/etc/caddy/`, ajouter `import /etc/caddy/wowforever.conf` au Caddyfile (chemin absolu, comme les autres sites), `caddy validate` puis `systemctl reload caddy`.
 4. `npm run db:seed` pour les données de démonstration.
 
 À chaque mise à jour : `deploy/deployer.sh` (récupère `main`, installe, migre, construit, recharge PM2 sur `127.0.0.1:3030`, puis vérifie `/api/sante`).
