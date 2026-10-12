@@ -1,0 +1,68 @@
+.continents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.continent {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.continent img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.continent ul {
+  list-style: none;
+  columns: 2 220px;
+  column-gap: 16px;
+}
+
+.continent li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  break-inside: avoid;
+}
+
+.continent small,
+.note {
+  color: var(--muted);
+}
+
+.note {
+  font-size: 0.9rem;
+}
+
+.recherche {
+  display: flex;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.recherche input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.recherche button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #1d1a16;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
