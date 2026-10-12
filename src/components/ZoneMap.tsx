@@ -138,7 +138,6 @@ export default function ZoneMap({ zone, categories, pois, poiInitial, rechercheI
       disableClusteringAtZoom: 1,
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: false,
-      chunkedLoading: true,
       iconCreateFunction: clusterIcone,
     }).addTo(map);
 
@@ -183,8 +182,14 @@ export default function ZoneMap({ zone, categories, pois, poiInitial, rechercheI
     const m = marqueurs.current.get(poiInitial);
     const p = pois.find((x) => x.id === poiInitial);
     if (!m || !p) return;
+    // Le point doit passer les filtres pour être dans la grappe.
     setVisibles((prev) => (prev.has(p.categorieId) ? prev : new Set(prev).add(p.categorieId)));
-    const minuteur = setTimeout(() => grappe.current?.zoomToShowLayer(m, () => m.openPopup()), 50);
+    setFaction("toutes");
+    setTexte((t) => (t && !normaliser(p.nom).includes(normaliser(t.trim())) ? "" : t));
+    const minuteur = setTimeout(() => {
+      const g = grappe.current;
+      if (g?.hasLayer(m)) g.zoomToShowLayer(m, () => m.openPopup());
+    }, 50);
     return () => clearTimeout(minuteur);
   }, [pret, poiInitial, pois]);
 

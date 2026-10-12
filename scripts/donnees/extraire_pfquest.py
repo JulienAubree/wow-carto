@@ -30,6 +30,29 @@ ZONES = {
 
 FACTIONS = {"A": "alliance", "H": "horde", "AH": "neutre"}
 
+# Capitale -> zone qui la contient. pfQuest projette une même apparition sur chaque carte
+# qui la couvre : un PNJ de Fossoyeuse apparaît aussi sur la carte de Tirisfal.
+VILLES = {1497: 85, 1657: 141, 1638: 215, 1637: 14, 1537: 1, 1519: 12}
+
+
+def au_bord(x, y, marge=5):
+    return x < marge or x > 100 - marge or y < marge or y > 100 - marge
+
+
+def coords_retenues(coords, unite):
+    """Une apparition = une seule zone : on retire les copies sur la carte voisine ou parente."""
+    coords = [(x, y, z) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
+    zones = {z for _, _, z in coords}
+    parents = {VILLES[z] for z in zones if z in VILLES}
+    coords = [c for c in coords if c[2] not in parents]
+    if unite and len({z for _, _, z in coords}) > 1:
+        # Projection sur une carte voisine : elle tombe au bord de cette carte-là.
+        loin_du_bord = {z for x, y, z in coords if not au_bord(x, y)}
+        coords = [c for c in coords if c[2] in loin_du_bord or not loin_du_bord]
+    # Restent les cartes qui se chevauchent vraiment (Moulin-de-Tarren visible aussi sur Alterac),
+    # comme dans le jeu.
+    return coords
+
 
 def chaine_lua(s):
     return s.replace("\\'", "'").replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
@@ -76,15 +99,24 @@ def lire_meta(chemin):
     return meta
 
 
-def lire_quetes(chemin_quetes, chemin_titres):
-    """Quêtes données par des PNJ : {id_pnj: [(niveau, titre)]}."""
+# Quêtes de test ou jamais sorties, repérées sur leur titre anglais.
+QUETE_INUTILISEE = re.compile(r"<(TEST|UNUSED|NYI|TXT)>|test (kill )?quest|\(123\)", re.IGNORECASE)
+
+
+def lire_titres(chemin):
     titres, qid = {}, None
-    with open(chemin_titres, encoding="utf-8") as f:
+    with open(chemin, encoding="utf-8") as f:
         for ligne in f:
             if m := re.match(r"^  \[(\d+)\] = \{", ligne):
                 qid = int(m.group(1))
             elif qid and (m := re.match(r'^    \["T"\] = "(.*)",\s*$', ligne)):
                 titres[qid] = chaine_lua(m.group(1))
+    return titres
+
+
+def lire_quetes(chemin_quetes, chemin_titres, chemin_titres_en):
+    """Quêtes données par des PNJ : {id_pnj: [(niveau, titre)]}."""
+    titres, titres_en = lire_titres(chemin_titres), lire_titres(chemin_titres_en)
     par_pnj, qid, bloc, niveau = defaultdict(list), None, None, {}
     with open(chemin_quetes, encoding="utf-8") as f:
         for ligne in f:
@@ -98,7 +130,7 @@ def lire_quetes(chemin_quetes, chemin_titres):
                 for pnj in m.group(1).split(","):
                     par_pnj[int(pnj)].append(qid)
     return {
-        pnj: sorted({(niveau.get(q, 0), titres[q]) for q in qs if q in titres and "TEST" not in titres[q].upper()})
+        pnj: sorted({(niveau.get(q, 0), titres[q]) for q in qs if q in titres and not QUETE_INUTILISEE.search(titres_en.get(q, ""))})
         for pnj, qs in par_pnj.items()
     }
 
@@ -109,16 +141,14 @@ def main():
     noms_u, noms_o = lire_noms(f"{db}/frFR/units.lua"), lire_noms(f"{db}/frFR/objects.lua")
     noms_u_en, noms_o_en = lire_noms(f"{db}/enUS/units.lua"), lire_noms(f"{db}/enUS/objects.lua")
     meta = lire_meta(f"{db}/meta.lua")
-    quetes = lire_quetes(f"{db}/quests.lua", f"{db}/frFR/quests.lua")
+    quetes = lire_quetes(f"{db}/quests.lua", f"{db}/frFR/quests.lua", f"{db}/enUS/quests.lua")
 
     points = []
     vus = set()
 
     def ajouter(categorie, source, ident, entree, nom, donnees, description=None):
-        for x, y, zone in entree["coords"]:
-            slug = ZONES.get(zone)
-            if not slug or not (0 <= x <= 100 and 0 <= y <= 100):
-                continue
+        for x, y, zone in coords_retenues(entree["coords"], source == "unite"):
+            slug = ZONES[zone]
             cle = (categorie, ident, slug, round(x, 1), round(y, 1))
             if cle in vus:
                 continue
@@ -130,7 +160,10 @@ def main():
             })
 
     def unite(ident):
-        return unites.get(ident), noms_u.get(ident) or noms_u_en.get(ident)
+        nom = noms_u.get(ident) or noms_u_en.get(ident)
+        if nom and ("UNUSED" in nom.upper() or "GM can see" in nom):
+            return None, None
+        return unites.get(ident), nom
 
     def objet(ident):
         return objets.get(abs(ident)), noms_o.get(abs(ident)) or noms_o_en.get(abs(ident))
@@ -164,7 +197,7 @@ def main():
     for ident, niveau in meta["rares"].items():
         e, nom = unite(ident)
         if e and nom:
-            ajouter("rare", "unite", ident, e, nom, {"niveau": e.get("lvl") or niveau, "elite": e.get("rnk") == "4"})
+            ajouter("rare", "unite", ident, e, nom, {"niveau": e.get("lvl") or niveau, "elite": e.get("rnk") in ("1", "2")})
 
     for cle, categorie in [("mines", "minerai"), ("herbs", "herbe"), ("chests", "tresor"), ("fish", "peche"), ("mailbox", "boite-aux-lettres"), ("meetingstone", "donjon")]:
         for ident, valeur in meta[cle].items():
@@ -176,7 +209,7 @@ def main():
 
     points.sort(key=lambda p: (p["zone"], p["categorie"], p["nom"], p["x"], p["y"]))
     with open(sortie, "w", encoding="utf-8") as f:
-        json.dump({"source": "pfQuest (MIT) / VMaNGOS, WoW Classic 1.12", "points": points}, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump({"source": "pfQuest, Copyright (c) 2017-2021 Eric Mauser (Shagu), licence MIT (voir THIRD_PARTY_NOTICES.md) ; données VMaNGOS, WoW Classic 1.12", "points": points}, f, ensure_ascii=False, separators=(",", ":"))
     compte = defaultdict(int)
     for p in points:
         compte[p["categorie"]] += 1

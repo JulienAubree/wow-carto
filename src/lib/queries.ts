@@ -1,4 +1,4 @@
-import { asc, eq, and, ilike, sql } from "drizzle-orm";
+import { asc, eq, and, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { CategorieCarte, DonneesPoi, PoiCarte, ResultatRecherche, ZoneCarte } from "./types";
 
@@ -65,9 +65,20 @@ export async function chargerZone(
   };
 }
 
+// Accents retirés côté base (sans extension) et côté requête : « acierite » trouve « Aciérite ».
+const ACCENTS = "àâäáãåçéèêëíìîïñóòôöõúùûüýÿ";
+const SANS_ACCENTS = "aaaaaaceeeeiiiinooooouuuuyy";
+
+function normaliser(texte: string) {
+  return texte
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 // Recherche par nom, regroupée par zone : « Feuillargent » donne une ligne par zone avec le nombre d'emplacements.
 export async function rechercher(texte: string): Promise<ResultatRecherche[]> {
-  const motif = `%${texte.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const motif = `%${normaliser(texte).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   return db
     .select({
       nom: schema.pois.nom,
@@ -82,7 +93,7 @@ export async function rechercher(texte: string): Promise<ResultatRecherche[]> {
     .from(schema.pois)
     .innerJoin(schema.zones, eq(schema.pois.zoneId, schema.zones.id))
     .innerJoin(schema.categories, eq(schema.pois.categorieId, schema.categories.id))
-    .where(and(eq(schema.pois.statut, "publie"), ilike(schema.pois.nom, motif)))
+    .where(and(eq(schema.pois.statut, "publie"), sql`translate(lower(${schema.pois.nom}), ${ACCENTS}, ${SANS_ACCENTS}) like ${motif}`))
     .groupBy(schema.pois.nom, schema.zones.slug, schema.zones.nom, schema.categories.nom, schema.categories.icone, schema.categories.couleur, schema.categories.ordre)
     .orderBy(asc(schema.categories.ordre), asc(schema.pois.nom), asc(schema.zones.nom))
     .limit(200);

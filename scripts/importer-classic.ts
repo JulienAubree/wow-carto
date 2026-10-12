@@ -24,6 +24,12 @@ const LARGEUR = 1002;
 const HAUTEUR = 668;
 const SOURCE = "pfquest";
 
+// Identité d'un point dans le fichier source, gardée dans donnees.cleImport : un point corrigé
+// par la communauté (déplacé, renommé) n'est pas réimporté en double par --remplacer.
+function cle(p: PointImporte) {
+  return [p.zone, p.categorie, p.donnees.uniteId ?? "", p.donnees.objetId ?? "", p.x.toFixed(1), p.y.toFixed(1)].join("|");
+}
+
 async function supprimerDemo() {
   const [demo] = await db.select({ id: schema.zones.id }).from(schema.zones).where(eq(schema.zones.slug, "demo"));
   if (!demo) return;
@@ -107,16 +113,20 @@ async function main() {
         .returning({ id: schema.pois.id });
       console.log(`${supprimes.length} points importés supprimés avant réimport.`);
     }
+    const gardes = new Set(
+      (await tx.select({ cle: sql<string>`${schema.pois.donnees}->>'cleImport'` }).from(schema.pois).where(importes)).map((p) => p.cle),
+    );
     const lignes = points.flatMap((p) => {
       const zoneId = zones[p.zone];
       const categorieId = categories[p.categorie];
-      if (!zoneId || !categorieId) return [];
-      return [{ zoneId, categorieId, nom: p.nom, description: p.description, x: p.x, y: p.y, donnees: p.donnees }];
+      const cleImport = cle(p);
+      if (!zoneId || !categorieId || gardes.has(cleImport)) return [];
+      return [{ zoneId, categorieId, nom: p.nom, description: p.description, x: p.x, y: p.y, donnees: { ...p.donnees, cleImport } }];
     });
     for (let i = 0; i < lignes.length; i += 1000) {
       await tx.insert(schema.pois).values(lignes.slice(i, i + 1000));
     }
-    console.log(`${lignes.length} points importés (sur ${points.length} dans le fichier).`);
+    console.log(`${lignes.length} points importés (sur ${points.length} dans le fichier, ${gardes.size} gardés).`);
   });
 }
 

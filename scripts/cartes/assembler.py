@@ -52,7 +52,7 @@ def lire_calques(chemin_lua):
     calques = {}
     with open(chemin_lua, encoding="utf-8") as f:
         for ligne in f:
-            m = re.match(r'\s*\["(\w+)"\] = \{("[A-Z0-9]+:\d+:\d+:\d+:\d+",?\s*)+\},?\s*$', ligne)
+            m = re.match(r'\s*\["(\w+)"\]\s*=\s*\{\s*"[A-Z0-9]+:\d+:\d+:\d+:\d+"', ligne)
             if m:
                 calques[m.group(1)] = [
                     tuple([n] + [int(v) for v in rest])
@@ -84,6 +84,8 @@ def assembler(worldmap, calques, nom, sortie):
     image = Image.new("RGBA", (1024, 768))
     if coller_tuiles(image, dossier, nom, 1024, 768, 0, 0):
         raise SystemExit(f"Fond incomplet pour {nom}")
+    if nom not in calques and any(not f.lower().startswith(nom.lower()) for f in os.listdir(dossier)):
+        print(f"  attention : aucun calque de sous-zone trouvé pour {nom}")
     manquants = []
     for n, l, h, x, y in calques.get(nom, []):
         if coller_tuiles(image, dossier, n, l, h, x, y):

@@ -20,7 +20,7 @@ npm install
 cp .env.example .env          # puis renseigner DATABASE_URL
 set -a; . ./.env; set +a
 npm run db:migrate            # crée les tables
-npm run db:import-classic     # 46 zones de Classic, catégories et ~25 600 points
+npm run db:import-classic     # 46 zones de Classic, catégories et ~24 900 points
 npm run dev                   # http://localhost:3000
 ```
 
@@ -64,7 +64,7 @@ Une seule fois :
 
 Les points sont ceux de Classic 1.12 : WoW: Forever modifie une partie des zones, les points importés portent `donnees.source = "pfquest"` pour être repérés et corrigés par la communauté. Les maîtres de métier et de classe et les entrées exactes de donjons ne sont pas dans ces sources : ils viendront des contributions.
 
-Régénérer les fonds de carte et les points : voir `scripts/cartes/README.md`.
+Les textes complets des licences MIT de pfQuest et pfUI sont dans `THIRD_PARTY_NOTICES.md`. Régénérer les fonds de carte et les points : voir `scripts/cartes/README.md`.
 
 ## Contributions
 
