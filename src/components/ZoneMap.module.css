@@ -1,0 +1,73 @@
+.cadre {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: calc(100vh - 120px);
+  min-height: 420px;
+  gap: 12px;
+}
+
+.filtres {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.filtres h2 {
+  font-size: 1rem;
+  margin: 0 0 4px;
+}
+
+.filtres label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pastille {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
+.coords {
+  margin-top: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.carte {
+  border-radius: 8px;
+  background: #1b1f24;
+}
+
+.marqueur span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .cadre {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: calc(100vh - 100px);
+  }
+  .filtres {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .coords {
+    display: none;
+  }
+}

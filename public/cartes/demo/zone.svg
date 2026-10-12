@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1002" height="668" viewBox="0 0 1002 668">
+  <defs>
+    <radialGradient id="mer" cx="50%" cy="50%" r="75%">
+      <stop offset="0" stop-color="#3d6b84"/>
+      <stop offset="1" stop-color="#1e3a4c"/>
+    </radialGradient>
+    <linearGradient id="terre" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9fae6b"/>
+      <stop offset="1" stop-color="#7f8f52"/>
+    </linearGradient>
+  </defs>
+  <rect width="1002" height="668" fill="url(#mer)"/>
+  <path d="M120 180 C170 80 330 60 450 95 C560 60 720 70 820 140 C905 200 925 320 880 410 C850 500 760 590 620 600 C500 640 360 615 260 560 C160 520 90 430 95 330 C92 270 100 220 120 180 Z" fill="#d9c79a"/>
+  <path d="M140 190 C185 105 335 88 450 120 C560 88 710 98 800 158 C880 212 895 320 852 402 C822 485 742 565 612 575 C498 612 365 590 270 538 C178 500 118 420 122 330 C120 275 126 225 140 190 Z" fill="url(#terre)"/>
+  <g fill="#4f6b3a" opacity="0.9">
+    <ellipse cx="300" cy="220" rx="90" ry="55"/>
+    <ellipse cx="240" cy="300" rx="60" ry="45"/>
+    <ellipse cx="690" cy="460" rx="100" ry="60"/>
+  </g>
+  <g fill="#8a7a66">
+    <path d="M600 150 l40 -60 l40 60 Z"/>
+    <path d="M650 165 l35 -50 l35 50 Z"/>
+    <path d="M705 175 l45 -70 l45 70 Z"/>
+  </g>
+  <path d="M470 110 C480 200 430 260 470 330 C510 400 460 470 520 590" fill="none" stroke="#4f86a6" stroke-width="10" stroke-linecap="round"/>
+  <g fill="#6e4b32" stroke="#3b2a1d" stroke-width="2">
+    <rect x="380" y="330" width="22" height="18"/>
+    <rect x="408" y="322" width="26" height="26"/>
+    <rect x="390" y="356" width="30" height="20"/>
+  </g>
+  <rect x="452" y="300" width="36" height="10" fill="#7a5c3e"/>
+  <g font-family="Georgia, serif" fill="#2b2418" text-anchor="middle">
+    <text x="420" y="400" font-size="18">Bourg-Témoin</text>
+    <text x="700" y="215" font-size="15">Monts Gris</text>
+    <text x="300" y="160" font-size="15">Bois d'Exemple</text>
+  </g>
+  <text x="501" y="645" font-family="Georgia, serif" font-size="14" fill="#cfe0ea" text-anchor="middle">Zone de démonstration · fond provisoire, à remplacer par la carte du jeu</text>
+</svg>
