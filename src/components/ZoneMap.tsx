@@ -88,6 +88,17 @@ const CRS_TERRAIN = L.extend({}, L.CRS.Simple, {
   transformation: new L.Transformation(ECHELLE_TERRAIN, ECHELLE_TERRAIN * ORIGINE_TERRAIN, -ECHELLE_TERRAIN, ECHELLE_TERRAIN * ORIGINE_TERRAIN),
 });
 const TUILE_VIDE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const ZOOM_ADT = 6;
+
+// Une tuile du zoom z couvre un carré de 2^(6 - z) ADT de côté : elle existe si l'une d'elles a une tuile.
+function tuileExiste(presentes: string[], { x, y, z }: L.Coords) {
+  const n = 2 ** (ZOOM_ADT - z);
+  for (let i = x * n; i < (x + 1) * n; i++) {
+    const ligne = presentes[i];
+    if (ligne && ligne.slice(y * n, (y + 1) * n).includes("1")) return true;
+  }
+  return false;
+}
 
 function etiquette(e: EtiquetteZone) {
   return L.divIcon({
@@ -160,18 +171,28 @@ export default function ZoneMap({ zone, categories, pois, etiquettes = AUCUNE_ET
       });
       const terrain = L.tileLayer(`/cartes/terrain/${monde.terrain}/{z}/{x}/{y}.webp`, {
         tileSize: 512,
-        maxNativeZoom: 6,
+        maxNativeZoom: ZOOM_ADT,
         maxZoom: 8,
         noWrap: true,
         bounds: L.latLngBounds(limitesAdt(monde.adt)),
         errorTileUrl: TUILE_VIDE,
-      }).addTo(map);
+      });
+      // Pas de requête pour les tuiles qui n'existent pas (la mer autour des continents).
+      const urlTuile = terrain.getTileUrl.bind(terrain);
+      terrain.getTileUrl = (c) => (tuileExiste(monde.presentes, c) ? urlTuile(c) : TUILE_VIDE);
       const parchemin = L.imageOverlay(zone.carteUrl, limites);
+      (monde.carteParDefaut ? parchemin : terrain).addTo(map);
       L.control.layers({ Terrain: terrain, "Carte du jeu": parchemin }, undefined, { collapsed: false }).addTo(map);
       map.fitBounds(limites);
       map.setMinZoom(Math.max(0, map.getZoom() - 1));
       map.createPane("etiquettes").style.zIndex = "450";
-      for (const e of etiquettes) L.marker(e.centre, { icon: etiquette(e), pane: "etiquettes", keyboard: false }).addTo(map);
+      for (const e of etiquettes) {
+        const m = L.marker(e.centre, { icon: etiquette(e), pane: "etiquettes", keyboard: false }).addTo(map);
+        // Leaflet ignore son propre clic à la fin d'un glissé, mais pas le navigateur qui suit le lien.
+        L.DomEvent.on(m.getElement()!, "click", (ev) => {
+          if ((map.dragging as L.Handler & { moved(): boolean }).moved()) L.DomEvent.preventDefault(ev);
+        });
+      }
     } else {
       const limites: L.LatLngBoundsExpression = [
         [0, 0],
@@ -193,8 +214,9 @@ export default function ZoneMap({ zone, categories, pois, etiquettes = AUCUNE_ET
 
     const groupe = L.markerClusterGroup({
       maxClusterRadius: 28,
-      // Points détaillés dès le premier zoom avant sur la zone entière.
-      disableClusteringAtZoom: Math.floor(map.getZoom()) + 1,
+      // Points groupés sur la zone entière, détaillés dès le premier zoom avant (markercluster
+      // travaille sur le zoom arrondi).
+      disableClusteringAtZoom: Math.min(Math.round(map.getZoom()) + 1, map.getMaxZoom()),
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: false,
       iconCreateFunction: clusterIcone,
@@ -206,7 +228,8 @@ export default function ZoneMap({ zone, categories, pois, etiquettes = AUCUNE_ET
       const cat = categoriesParId.get(p.categorieId);
       if (!cat) continue;
       const m = L.marker(versCarte(p.x, p.y), { icon: icones.get(cat.id), title: p.nom })
-        .bindPopup(() => fiche(p, cat), { maxWidth: 320 })
+        // Marge en haut : la fiche ne passe pas sous les boutons de zoom et le choix de la vue.
+        .bindPopup(() => fiche(p, cat), { maxWidth: 320, autoPanPaddingTopLeft: L.point(5, 75) })
         .on("click", () => history.replaceState(null, "", `?poi=${p.id}`));
       tous.set(p.id, m);
     }

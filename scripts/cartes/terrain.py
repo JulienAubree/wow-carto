@@ -7,7 +7,8 @@ Chaque carte du monde (azeroth = Royaumes de l'Est, kalimdor) est une grille de 
 public/cartes/terrain/<carte>/<z>/<x>/<y>.webp (512 x 512 px), suivent ce découpage : au zoom 6, la tuile
 (x, y) est l'ADT (x, y) ; chaque zoom inférieur assemble 2 x 2 tuiles du zoom suivant ; au zoom 0,
 une seule tuile couvre toute la grille. src/lib/coords.ts fait le lien avec les coordonnées du monde.
-data/forever/terrain.json donne l'étendue des ADT présentes : [xMin, yMin, xMax, yMax].
+data/forever/terrain.json donne l'étendue des ADT présentes, [xMin, yMin, xMax, yMax], et leur liste :
+presentes[carte][x][y] vaut "1" quand l'ADT (x, y) a une tuile.
 Il faut Python 3 avec Pillow.
 """
 import csv
@@ -66,22 +67,32 @@ def tuile_parent(args):
     return (x, y), image.resize((moitie, moitie), Image.LANCZOS).tobytes()
 
 
+def lire_tuiles(source, carte):
+    """[(blp, x, y)] des tuiles extraites, d'après tuiles.csv (une image restée d'une extraction plus
+    ancienne n'y figure pas)."""
+    chemin = os.path.join(source, carte, "tuiles.csv")
+    if not os.path.exists(chemin):
+        sys.exit(f"{chemin} introuvable : lancer d'abord client/extraire_minimap.py")
+    with open(chemin, newline="") as f:
+        tuiles = [(os.path.join(source, carte, f"{r['x']}_{r['y']}.blp"), int(r["x"]), int(r["y"])) for r in csv.DictReader(f) if r["present"] == "1"]
+    if not tuiles:
+        sys.exit(f"{chemin} : aucune tuile extraite")
+    return tuiles
+
+
 def main():
     source = sys.argv[1]
-    etendues = {}
-    for carte in CARTES:
+    # Toutes les entrées sont vérifiées avant d'effacer les tuiles déjà construites.
+    entrees = {carte: lire_tuiles(source, carte) for carte in CARTES}
+    etendues, presentes = {}, {}
+    for carte, tuiles in entrees.items():
         dossier = os.path.join(RACINE, "public", "cartes", "terrain", carte)
         shutil.rmtree(dossier, ignore_errors=True)
-        # tuiles.csv liste les tuiles de la carte au moment de l'extraction ; une image restée d'une
-        # extraction plus ancienne n'y figure pas.
-        with open(os.path.join(source, carte, "tuiles.csv"), newline="") as f:
-            travaux = [
-                (os.path.join(source, carte, f"{r['x']}_{r['y']}.blp"), dossier, int(r["x"]), int(r["y"]))
-                for r in csv.DictReader(f)
-                if r["present"] == "1"
-            ]
-        # ADT présentes, pour que Leaflet ne demande pas de tuiles au-delà.
+        travaux = [(blp, dossier, x, y) for blp, x, y in tuiles]
+        # ADT présentes, pour que Leaflet ne demande pas de tuiles qui n'existent pas.
         etendues[carte] = [min(t[2] for t in travaux), min(t[3] for t in travaux), max(t[2] for t in travaux), max(t[3] for t in travaux)]
+        grille = {(t[2], t[3]) for t in travaux}
+        presentes[carte] = ["".join("1" if (x, y) in grille else "0" for y in range(64)) for x in range(64)]
         with ProcessPoolExecutor() as pool:
             niveau = dict(pool.map(tuile_adt, travaux, chunksize=8))
             total = len(niveau)
@@ -93,8 +104,7 @@ def main():
                 total += len(niveau)
         print(f"{carte} : {len(travaux)} ADT, {total} tuiles")
     with open(os.path.join(RACINE, "data", "forever", "terrain.json"), "w", encoding="utf-8") as f:
-        f.write(json.dumps({"zoomMax": ZOOM_MAX, "adt": etendues}) + "\n")
-
+        f.write(json.dumps({"zoomMax": ZOOM_MAX, "adt": etendues, "presentes": presentes}) + "\n")
 
 if __name__ == "__main__":
     main()

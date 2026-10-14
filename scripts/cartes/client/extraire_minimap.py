@@ -53,19 +53,22 @@ class Lecteur:
         self.casc = self.cr.Casc(wow, PRODUCT)
 
     def variantes(self, fdids):
-        """{fdid: (ckey, ekey)} de la première variante présente localement, et les erreurs."""
+        """{fdid: (ckey, ekey)} de la première variante présente localement ; ekey vaut None quand
+        aucune ne l'est (le fichier peut alors être déjà extrait avec cette clé de contenu)."""
         root = self.casc.load_root(fdids)
         enc = self.casc.load_encoding({ck for v in root.values() for _, _, ck in v})
-        res, erreurs = {}, []
+        res = {}
         for fd in fdids:
-            for _, _, ck in root.get(fd, []):
+            ents = root.get(fd, [])
+            for _, _, ck in ents:
                 ek = enc.get(ck)
                 if ek is not None and ek[:9] in self.casc.idx:
                     res[fd] = (ck, ek)
                     break
             else:
-                erreurs.append('%d: absent du stockage local' % fd)
-        return res, erreurs
+                if ents:
+                    res[fd] = (ents[0][2], None)
+        return res
 
     def lire(self, ekey):
         return self.casc.read_ekey(ekey)
@@ -88,32 +91,44 @@ def main():
         cartes = {a.split('=')[0]: int(a.split('=')[1]) for a in sys.argv[3:]}
     t0 = time.time()
     lecteur = Lecteur(wow)
-    variantes, erreurs = lecteur.variantes(list(cartes.values()))
-    for e in erreurs:
-        print('WDT', e)
+    wdts = lecteur.variantes(list(cartes.values()))
     for nom, fdid in cartes.items():
-        if fdid not in variantes:
+        try:
+            ekey = wdts.get(fdid, (None, None))[1]
+            if ekey is None:
+                raise KeyError('absent du stockage local')
+            tuiles = tuiles_minimap(lecteur.lire(ekey))
+        except Exception as e:  # bloc chiffré, archive absente…
+            print('WDT %d (%s) : %s' % (fdid, nom, e))
             continue
         dossier = os.path.join(sortie, nom)
         os.makedirs(dossier, exist_ok=True)
-        tuiles = tuiles_minimap(lecteur.lire(variantes[fdid][1]))
         chemin_csv = os.path.join(dossier, 'tuiles.csv')
         deja = deja_extraites(chemin_csv)
-        presentes, erreurs = lecteur.variantes([fd for _, _, fd in tuiles])
-        lignes, lues = [], 0
+        presentes = lecteur.variantes([fd for _, _, fd in tuiles])
+        lignes, lues, erreurs = [], 0, []
         for x, y, fd in tuiles:
             chemin = os.path.join(dossier, '%d_%d.blp' % (x, y))
-            ckey = presentes[fd][0].hex() if fd in presentes else ''
-            if ckey and (deja.get((x, y)) != ckey or not os.path.exists(chemin)):
-                try:
-                    contenu = lecteur.lire(presentes[fd][1])
-                except Exception as e:  # bloc chiffré, archive absente…
-                    erreurs.append('%d: %s' % (fd, e))
+            if fd not in presentes:
+                erreurs.append('%d: absent de root' % fd)
+                ckey = ''
+            else:
+                ckey, ekey = presentes[fd][0].hex(), presentes[fd][1]
+                if deja.get((x, y)) == ckey and os.path.exists(chemin):
+                    pass  # déjà extraite, inchangée
+                elif ekey is None:
+                    erreurs.append('%d: absent du stockage local' % fd)
                     ckey = ''
                 else:
-                    with open(chemin, 'wb') as f:
-                        f.write(contenu)
-                    lues += 1
+                    try:
+                        contenu = lecteur.lire(ekey)
+                    except Exception as e:  # bloc chiffré, archive absente…
+                        erreurs.append('%d: %s' % (fd, e))
+                        ckey = ''
+                    else:
+                        with open(chemin, 'wb') as f:
+                            f.write(contenu)
+                        lues += 1
             lignes.append([x, y, fd, ckey, int(bool(ckey))])
         with open(chemin_csv, 'w', newline='') as f:
             w = csv.writer(f)

@@ -45,7 +45,7 @@ python3 -I scripts/cartes/forever.py ~/extraction-cartes/sortie
 python3 -I scripts/cartes/terrain.py ~/extraction-cartes/minimap
 ```
 
-Écrit les tuiles de la vue terrain, `public/cartes/terrain/<carte>/<z>/<x>/<y>.webp` (zooms 0 à 6, une ADT par tuile au zoom 6), et `data/forever/terrain.json`. Les zones des Royaumes de l'Est et de Kalimdor s'affichent sur cette vue, à la place donnée par leurs bornes ; les îles à part (Zéphras, Sombrelances) et les champs de bataille n'ont que la carte du jeu.
+Écrit les tuiles de la vue terrain, `public/cartes/terrain/<carte>/<z>/<x>/<y>.webp` (zooms 0 à 6, une ADT par tuile au zoom 6), et `data/forever/terrain.json`. Les zones des Royaumes de l'Est et de Kalimdor s'affichent sur cette vue, à la place donnée par leurs bornes ; les îles à part (Zéphras, Sombrelances) et les champs de bataille n'ont que la carte du jeu. Forgefer et Fossoyeuse s'ouvrent sur la carte du jeu, la vue terrain en option : la minimap ne montre que la montagne ou les ruines au-dessus de ces villes.
 
 ## 3. Régénérer les points
 
