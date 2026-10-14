@@ -42,6 +42,7 @@ Autres commandes : `npm run typecheck`, `npm run lint`, `npm run db:generate` (a
 | `data/forever/cartes.json` | Position de chaque carte dans le monde, dans Forever et dans Classic : place la zone sur la vue terrain et recale les points |
 | `data/forever/terrain.json` | Étendue des tuiles de la vue terrain |
 | `data/classic/pois.json.gz` | Points importés (PNJ, services, rares, minerais, herbes, bancs de poissons, coffres) |
+| `data/forever/client.json` | Points lus dans les tables du client de WoW: Forever : nœuds de vol et entrées de donjons et de raids |
 | `scripts/importer-classic.ts` | Import des zones, catégories et points dans la base |
 | `scripts/cartes/`, `scripts/donnees/` | Extraction des cartes depuis le client du jeu et régénération des points |
 | `deploy/` | PM2, Caddy et script de mise à jour pour Exilium |
@@ -64,8 +65,11 @@ Une seule fois :
 | Vue terrain (minimap vue de dessus) | Textures de minimap du client WoW: Forever 1.60.1, lues sur un client installé | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Cartes des zones et continents, en français | Textures et tables de la carte du monde du client WoW: Forever 1.60.1 frFR, lues sur un client installé (tables `UiMap…` et `WorldMapOverlay…` du même build publiées par [wago.tools](https://wago.tools)) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Points (PNJ, services, rares, minerais, herbes, bancs de poissons, coffres, boîtes aux lettres, pierres de rencontre) et noms français | Base de l'addon [pfQuest](https://github.com/shagu/pfQuest) (`db/`), elle-même issue de [VMaNGOS](https://github.com/vmangos) | MIT, © Eric Mauser (Shagu) |
+| Nœuds de vol, entrées de donjons et de raids, position des maîtres de vol | Tables `TaxiNodes`, `Map`, `AreaTable` et `UiMapAssignment` du client WoW: Forever 1.60.1 frFR, lues sur un client installé (structure des tables d'après [WoWDBDefs](https://github.com/wowdev/WoWDBDefs), téléchargée à l'extraction et non redistribuée) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 
-Les points sont ceux de Classic 1.12, placés sur les cartes de Forever : sur les cartes qui couvrent une autre portion du monde que dans Classic (Mulgore, Hurlevent, Les Carmines, Maleterres de l'Est), leur position est recalculée. WoW: Forever modifie une partie des zones, les points importés portent `donnees.source = "pfquest"` pour être repérés et corrigés par la communauté. Les nouvelles zones de Forever (Mont Hyjal, Île de Zéphras, Îles des Sombrelances, Rives Claires, Shen'dralas), les maîtres de métier et de classe et les entrées exactes de donjons ne sont pas dans ces sources : ils viendront des contributions.
+Les points de pfQuest sont ceux de Classic 1.12, placés sur les cartes de Forever : sur les cartes qui couvrent une autre portion du monde que dans Classic (Mulgore, Hurlevent, Les Carmines, Maleterres de l'Est), leur position est recalculée. WoW: Forever modifie une partie des zones, les points importés portent `donnees.source = "pfquest"` pour être repérés et corrigés par la communauté.
+
+Le client du jeu ne contient que ce qui s'affiche sans le serveur. Les nœuds de vol de Forever (y compris ceux du Mont Hyjal et des Rives Claires) et les entrées des donjons et des raids de Classic, sauf Naxxramas, en viennent (`donnees.source = "client"`), et les maîtres de vol de pfQuest sont placés sur le nœud de vol de Forever le plus proche, à moins de 60 m (`donnees.position = "forever"`) ; seule Sulhasa, au Repos des vaillants, n'a pas de nœud dans Forever et garde sa position de Classic. Les PNJ, les herbes, les minerais et les coffres sont envoyés par le serveur : le Mont Hyjal et les Rives Claires n'ont que leurs nœuds de vol, l'Île de Zéphras, les Îles des Sombrelances et Shen'dralas n'ont encore aucun point, et les maîtres de métier et de classe et les entrées de Naxxramas et des nouvelles instances viendront des contributions.
 
 Le texte complet de la licence MIT de pfQuest est dans `THIRD_PARTY_NOTICES.md`. Extraire à nouveau les cartes et régénérer les points : voir `scripts/cartes/README.md`.
 

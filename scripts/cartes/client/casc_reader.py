@@ -61,7 +61,9 @@ def load_indexes(wow):
     return idx
 
 
-def blte_decode(b):
+def blte_decode(b, zeros=False):
+    """zeros : remplace par des zéros les blocs chiffrés dont la taille est connue, au lieu d'échouer
+    (les sections chiffrées d'une table DB2 sont alors ignorées à la lecture)."""
     if b[:4] != b'BLTE':
         raise ValueError('pas de BLTE')
     hsize = struct.unpack_from('>I', b, 4)[0]
@@ -82,7 +84,9 @@ def blte_decode(b):
         elif mode == b'Z':
             out += zlib.decompress(blk[1:])
         elif mode == b'E':
-            raise EncryptedError('bloc BLTE chiffré')
+            if not zeros or c[1] is None:
+                raise EncryptedError('bloc BLTE chiffré')
+            out += bytes(c[1])
         else:
             raise ValueError('mode BLTE non géré: %r' % mode)
     return bytes(out)
@@ -96,7 +100,7 @@ class Casc:
         self.idx = load_indexes(wow)
         self._files = {}
 
-    def read_ekey(self, ekey):
+    def read_ekey(self, ekey, zeros=False):
         ent = self.idx.get(ekey[:9])
         if ent is None:
             raise KeyError('ekey absente du stockage local: ' + ekey.hex())
@@ -106,7 +110,7 @@ class Casc:
             f = self._files[archive] = open(os.path.join(self.wow, 'Data', 'data', 'data.%03d' % archive), 'rb')
         f.seek(offset)
         raw = f.read(size)
-        return blte_decode(raw[30:])
+        return blte_decode(raw[30:], zeros)
 
     def load_encoding(self, wanted):
         """Renvoie {ckey: ekey} pour les ckeys demandées."""
