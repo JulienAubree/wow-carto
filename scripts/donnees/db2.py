@@ -63,6 +63,13 @@ def _signe(v, bits):
     return v - (1 << bits) if v & (1 << (bits - 1)) else v
 
 
+def _signe_colonne(v, c):
+    """Valeur 32 bits d'une palette ou des données communes, signée sur la largeur de la colonne
+    (un int<16> à -1 y est rangé 0xFFFF)."""
+    bits = min(c["bits"] or 32, 32)
+    return _signe(v & ((1 << bits) - 1), bits)
+
+
 def hash_table(chemin_db2):
     """Empreinte du nom de la table, celle qui désigne la table dans le cache des correctifs (DBCache.bin)."""
     with open(chemin_db2, "rb") as f:
@@ -217,7 +224,7 @@ def lire_table(chemin_db2, chemin_dbd):
                     elif type_stockage != 5 and not c["non_signe"] and (c["bits"] or 32) in (8, 16, 32, 64) and type_stockage == 0:
                         res.append(_signe(v, c["bits"] or 32))
                     elif type_stockage in (3, 4) and not c["non_signe"]:
-                        res.append(_signe(v, 32))
+                        res.append(_signe_colonne(v, c))
                     else:
                         res.append(v)
                 ligne[c["nom"]] = res if c["tableau"] > 1 else res[0]
@@ -229,7 +236,7 @@ def lire_table(chemin_db2, chemin_dbd):
                     if dbd["colonnes"].get(c["nom"]) == "float":
                         v = struct.unpack("<f", struct.pack("<I", v))[0]
                     elif not c["non_signe"]:
-                        v = _signe(v, 32)
+                        v = _signe_colonne(v, c)
                     ligne[c["nom"]] = v
             for c in bloc["champs"]:
                 if c["relation"] and not c["inline"]:

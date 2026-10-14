@@ -156,9 +156,11 @@ async function main() {
   const lire = (c: Buffer | null) => (c ? (JSON.parse(c.toString("utf8")) as { points: PointImporte[] }).points : []);
   const pfquest = lire(contenuPfquest);
   const client = lire(contenuClient);
-  // Un nœud de vol déjà représenté par son maître de vol de pfQuest (placé dessus) n'est pas importé deux fois.
-  const noeudsPris = new Set<unknown>(pfquest.map((p) => p.donnees.noeudVol).filter((n) => n !== undefined));
-  const points = [...pfquest, ...client.filter((p) => !(p.donnees.table === "TaxiNodes" && noeudsPris.has(p.donnees.idClient)))];
+  // Un nœud de vol déjà représenté sur sa carte par son maître de vol de pfQuest (placé dessus) n'y est pas
+  // importé deux fois. Celui de Kargath, dans les Terres ingrates, reste : pfQuest n'a gardé son maître de vol
+  // que sur la carte voisine de la Gorge des Vents brûlants.
+  const noeudsPris = new Set(pfquest.filter((p) => p.donnees.noeudVol !== undefined).map((p) => `${p.zone}|${p.donnees.noeudVol}`));
+  const points = [...pfquest, ...client.filter((p) => !(p.donnees.table === "TaxiNodes" && noeudsPris.has(`${p.zone}|${p.donnees.idClient}`)))];
   const zones = Object.fromEntries((await db.select({ id: schema.zones.id, slug: schema.zones.slug }).from(schema.zones)).map((z) => [z.slug, z.id]));
   const categories = Object.fromEntries(
     (await db.select({ id: schema.categories.id, slug: schema.categories.slug }).from(schema.categories)).map((c) => [c.slug, c.id]),

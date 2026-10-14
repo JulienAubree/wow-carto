@@ -116,25 +116,6 @@
    }
   },
   {
-   "zone": "clairieres-de-tirisfal",
-   "categorie": "maitre-vol",
-   "nom": "Undercity",
-   "x": 61.2,
-   "y": 75.32,
-   "description": null,
-   "monde": [
-    0,
-    1568.6,
-    268.0
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 11,
-    "faction": "horde"
-   }
-  },
-  {
    "zone": "contreforts-de-hautebrande",
    "categorie": "maitre-vol",
    "nom": "Moulin-de-Tarren",
@@ -268,25 +249,6 @@
    }
   },
   {
-   "zone": "dun-morogh",
-   "categorie": "maitre-vol",
-   "nom": "Ironforge",
-   "x": 60.05,
-   "y": 28.77,
-   "description": null,
-   "monde": [
-    0,
-    -4821.8,
-    -1155.4
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 6,
-    "faction": "alliance"
-   }
-  },
-  {
    "zone": "feralas",
    "categorie": "donjon",
    "nom": "Hache-tripes",
@@ -397,6 +359,44 @@
     "source": "client",
     "table": "TaxiNodes",
     "idClient": 10,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "forgefer",
+   "categorie": "maitre-vol",
+   "nom": "Ironforge",
+   "x": 55.89,
+   "y": 47.87,
+   "description": null,
+   "monde": [
+    0,
+    -4821.8,
+    -1155.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 6,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "fossoyeuse",
+   "categorie": "maitre-vol",
+   "nom": "Undercity",
+   "x": 63.09,
+   "y": 48.32,
+   "description": null,
+   "monde": [
+    0,
+    1568.6,
+    268.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 11,
     "faction": "horde"
    }
   },

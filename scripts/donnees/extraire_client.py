@@ -1,8 +1,9 @@
 """Points de WoW: Forever tirés des tables du client : nœuds de vol et entrées de donjons et de raids.
 
 Le client ne contient que ce qui s'affiche sans le serveur : les nœuds de vol (TaxiNodes) et, pour
-chaque donjon ou raid, l'endroit où l'on revient en fantôme après une mort à l'intérieur, devant
-l'entrée (Map.Corpse). Les PNJ, les herbes, les minerais et les coffres sont envoyés par le serveur.
+les donjons et raids de Classic sauf Naxxramas, l'endroit où l'on revient en fantôme après une mort à
+l'intérieur, devant l'entrée (Map.Corpse). Les PNJ, les herbes, les minerais et les coffres sont
+envoyés par le serveur.
 
 Usage :
   python3 -I scripts/donnees/extraire_client.py <dossier des tables> <aires.json> [<sortie>]
@@ -77,11 +78,11 @@ class Zones:
         self.parents = {a["ID"]: a["ParentAreaID"] for a in self.zones_du_jeu}
         self.aires = aires
 
-    def sous_zone(self, carte, nom):
-        """Sous-zone du monde (avec une zone parente) qui porte ce nom, à l'article près, ou 0."""
+    def zones_nommees(self, carte, nom):
+        """Zones du monde qui portent ce nom, à l'article près, les sous-zones d'abord."""
         sans_article = lambda n: re.sub(r"^(le |la |les |l')", "", n.lower().replace("’", "'"))
-        return next((a["ID"] for a in self.zones_du_jeu if a["ContinentID"] == carte and a["ParentAreaID"]
-                     and sans_article(a["AreaName_lang"]) == sans_article(nom)), 0)
+        trouvees = [a for a in self.zones_du_jeu if a["ContinentID"] == carte and sans_article(a["AreaName_lang"]) == sans_article(nom)]
+        return [a["ID"] for a in sorted(trouvees, key=lambda a: 0 if a["ParentAreaID"] else 1)]
 
     def aire(self, carte, x, y):
         nom = next((n for n, m in CARTES_MONDE.items() if m == carte), None)
@@ -91,16 +92,19 @@ class Zones:
         parcelles = self.aires[nom].get("%d_%d" % (col // 16, lig // 16))
         return parcelles[(lig % 16) * 16 + col % 16] if parcelles else 0
 
-    def zone(self, carte, x, y, aire=0):
+    def zone(self, carte, x, y, indices=()):
+        """`indices` : zones du jeu à essayer avant celle de la parcelle, par exemple celle qui porte le
+        nom du lieu (la parcelle donne le terrain, pas l'intérieur d'une ville comme Ironforge)."""
         candidates = [(a, r, s) for m, a, r, s in self.affectations if m == carte and r[0] <= x <= r[2] and r[1] <= y <= r[3]]
-        chaine, a = [], aire or self.aire(carte, x, y)
-        while a and a not in chaine:
-            chaine.append(a)
-            a = self.parents.get(a, 0)
-        for a in chaine:
-            for aire_carte, _, slug in candidates:
-                if aire_carte == a:
-                    return slug
+        for depart in [*indices, self.aire(carte, x, y)]:
+            chaine, a = [], depart
+            while a and a not in chaine:
+                chaine.append(a)
+                a = self.parents.get(a, 0)
+            for a in chaine:
+                for aire_carte, _, slug in candidates:
+                    if aire_carte == a:
+                        return slug
         if len({s for _, _, s in candidates}) == 1:
             return candidates[0][2]
         return None
@@ -120,8 +124,11 @@ def main():
         zones = Zones(dossier, json.load(f))
     points, ignores = [], defaultdict(list)
 
-    def ajouter(categorie, table_, ident, nom, carte, pos, donnees, aire=0, description=None):
-        slug = zones.zone(carte, pos[0], pos[1], aire)
+    def ajouter(categorie, table_, ident, nom, carte, pos, donnees, description=None):
+        # La zone qui porte le nom du lieu passe avant celle de la parcelle : Uldaman est dans les Terres
+        # ingrates même si son point de retour tombe de l'autre côté de la limite, Ironforge est une ville
+        # au-dessus du terrain de Dun Morogh.
+        slug = zones.zone(carte, pos[0], pos[1], zones.zones_nommees(carte, nom))
         if not slug:
             ignores[table_].append("%d %s (carte %d, %.0f, %.0f)" % (ident, nom, carte, pos[0], pos[1]))
             return
@@ -141,16 +148,13 @@ def main():
         ajouter("maitre-vol", "TaxiNodes", n["ID"], n["Name_lang"].split(",")[0].strip(), n["ContinentID"], n["Pos"], {"faction": faction})
 
     # Entrées des donjons (InstanceType 1) et des raids (2) : le point de retour du fantôme, devant
-    # l'entrée. Sa zone est celle de la sous-zone du monde qui porte le nom de l'instance quand il y
-    # en a une (Uldaman dans les Terres ingrates, Brassenoire dans Orneval) : le point de retour peut
-    # tomber de l'autre côté d'une limite de zone.
+    # l'entrée. Naxxramas n'en a pas (0, 0) ; les instances nouvelles de Forever non plus (CorpseMapID -1).
     for m in table(dossier, "Map"):
         role = {1: "entree-donjon", 2: "entree-raid"}.get(m["InstanceType"])
         x, y = m["Corpse"]
         if not role or m["CorpseMapID"] not in CARTES_MONDE.values() or (x, y) == (0, 0) or "<unused>" in m["MapName_lang"]:
             continue
-        aire = zones.sous_zone(m["CorpseMapID"], m["MapName_lang"])
-        ajouter("donjon", "Map", m["ID"], m["MapName_lang"], m["CorpseMapID"], (x, y), {"role": role}, aire,
+        ajouter("donjon", "Map", m["ID"], m["MapName_lang"], m["CorpseMapID"], (x, y), {"role": role},
                 "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.")
 
     points.sort(key=lambda p: (p["zone"], p["categorie"], p["nom"], p["donnees"]["idClient"]))
