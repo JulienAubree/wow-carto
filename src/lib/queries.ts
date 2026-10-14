@@ -174,7 +174,7 @@ export async function etiquettesVoisines(slug: string): Promise<EtiquetteZone[]>
 const ACCENTS = "àâäáãåçéèêëíìîïñóòôöõúùûüýÿ";
 const SANS_ACCENTS = "aaaaaaceeeeiiiinooooouuuuyy";
 
-// Recherche par nom, regroupée par zone : « Feuillargent » donne une ligne par zone avec le nombre d'emplacements.
+// Recherche par nom, regroupée par zone : « Gadgetzan » donne une ligne par zone avec le nombre d'emplacements.
 // Les noms exacts d'abord, puis ceux qui commencent par le texte, puis les autres.
 export async function rechercher(texte: string): Promise<ResultatRecherche[]> {
   const t = normaliser(texte).replace(/[\\%_]/g, (c) => `\\${c}`);

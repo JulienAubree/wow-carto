@@ -131,18 +131,17 @@ export default function Accueil() {
       <header className={styles.entetePage}>
         <h1>Carte communautaire de WoW: Forever</h1>
         <p className={styles.accroche}>
-          Quêtes, maîtres de vol, monstres rares, minerais, herbes et trésors de chaque zone. Choisis une zone ou cherche
-          un nom.
+          Maîtres de vol et entrées de donjons de chaque zone, en attendant les ajouts des joueurs. Choisis une zone ou
+          cherche un nom.
         </p>
         <FormulaireRecherche id="recherche-accueil" />
         <Exemples />
         <details className={`${ui.encart} ${styles.provenance}`}>
           <summary>D&apos;où viennent les données ?</summary>
           <p>
-            Les cartes, la position des maîtres de vol et les entrées de donjons viennent du client français de WoW:
-            Forever, les autres points de WoW Classic 1.12. Parmi les nouvelles zones de Forever, le Mont Hyjal et les
-            Rives Claires n&apos;ont encore que leurs maîtres de vol, les autres aucun point : les joueurs pourront
-            bientôt proposer des ajouts et des corrections.
+            Les cartes et les points viennent du client français de WoW: Forever : pour l&apos;instant les maîtres de
+            vol et les entrées de donjons. Les PNJ, les herbes, les minerais et les trésors ne sont pas dans les fichiers
+            du jeu : les joueurs pourront bientôt les ajouter.
           </p>
         </details>
       </header>

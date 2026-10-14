@@ -20,7 +20,7 @@ import {
   limitesMonde,
   mondeVersJeu,
 } from "@/lib/coords";
-import { MASQUEES_PAR_DEFAUT, METIER, TYPE_SINGULIER, typePoi } from "@/lib/categories";
+import { MASQUEES_PAR_DEFAUT, TYPE_SINGULIER, typePoi } from "@/lib/categories";
 import { echapper, normaliser } from "@/lib/texte";
 import type { CategorieCarte, EtiquetteZone, PoiCarte, ZoneCarte } from "@/lib/types";
 import { Pastille } from "./IconeCategorie";
@@ -91,42 +91,20 @@ function boutonsCopie(way: string, id?: number) {
 function fiche(p: PoiCarte, cat: CategorieCarte, type: string) {
   const d = p.donnees;
   const puces = [`<li class="${ui.pilule}">${echapper(type)}</li>`];
-  if (d.niveau) puces.push(`<li class="${ui.pilule}">Niv. ${echapper(d.niveau.replace("-", "–"))}${d.elite ? " élite" : ""}</li>`);
   if (d.faction === "alliance" || d.faction === "horde") {
     puces.push(`<li class="${ui.pilule} ${styles.faction}" data-faction="${d.faction}">${FACTIONS[d.faction]}</li>`);
   } else if (d.faction === "neutre") {
     puces.push(`<li class="${ui.pilule}">Neutre</li>`);
   }
-  if (d.metier) puces.push(`<li class="${ui.pilule}">${METIER[cat.slug] ?? "Compétence"} ${d.metier}</li>`);
-  let description = "";
-  if (p.description && cat.slug === "pnj-quete") {
-    const quetes = p.description
-      .replace(/^Quêtes\s*:\s*/, "")
-      .split(/\s*;\s*/)
-      .filter(Boolean);
-    const titre = quetes.length > 1 ? `Quêtes (${quetes.length})` : "Quête";
-    const liste = `<ul class="${styles.quetes}">${quetes.map((q) => `<li>${echapper(q)}</li>`).join("")}</ul>`;
-    // Longue liste : elle défile seule sur ordinateur, et prend le focus pour défiler au clavier. Sur mobile, toute
-    // la fiche défile.
-    description =
-      `<p class="${styles.sousTitre}" id="quetes-${p.id}">${titre}</p>` +
-      (quetes.length <= 8
-        ? liste
-        : `<div class="${styles.quetesLongues}"${estMobile() ? "" : ` tabindex="0" role="region" aria-labelledby="quetes-${p.id}"`}>${liste}</div>`);
-  } else if (p.description) {
-    description = `<p class="${styles.descriptionFiche}">${echapper(p.description)}</p>`;
-  }
-  // Les actions passent avant la liste des quêtes : elles restent visibles sans faire défiler la fiche.
+  const description = p.description ? `<p class="${styles.descriptionFiche}">${echapper(p.description)}</p>` : "";
   return (
     `<div data-titre="${echapper(`Fiche : ${p.nom}`)}">` +
     `<header class="${styles.teteFiche}"><span class="${ui.pastille}" style="--cat:${echapper(cat.couleur)}">${svgCategorie(cat.slug, cat.icone)}</span><h3>${echapper(p.nom)}</h3></header>` +
     `<ul class="${styles.puces}">${puces.join("")}</ul>` +
     boutonsCopie(`/way ${coordsWay(p.x, p.y)} ${p.nom}`, p.id) +
-    (d.source === "client" || d.position === "forever"
+    (d.source === "client"
       ? `<p class="${ui.pilule} ${styles.position}" title="Position relevée dans les fichiers du jeu de WoW: Forever">Position de Forever</p>`
-      : d.source === "pfquest"
-        ? `<p class="${ui.pilule} ${styles.position} ${styles.avertissement}" title="Position reprise de WoW Classic 1.12 (pfQuest), à vérifier dans Forever">Position Classic à confirmer</p>`
-        : "") +
+      : "") +
     description +
     `</div>`
   );
