@@ -3,10 +3,15 @@
 pfQuest (https://github.com/shagu/pfQuest, © Eric Mauser « Shagu ») embarque les positions
 des PNJ et des objets de WoW Classic 1.12, issues du projet VMaNGOS, avec les noms en français.
 
+Les positions de pfQuest sont relatives aux cartes de Classic. Quand une carte de Forever couvre
+une autre portion du monde (Mulgore, Hurlevent…), elles sont recalées grâce aux bornes de
+data/forever/cartes.json (voir scripts/cartes/forever.py).
+
 Usage : python3 scripts/donnees/extraire_pfquest.py <pfQuest/db> <sortie.json>
 Le JSON produit est importé par scripts/importer-classic.ts.
 """
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -26,7 +31,27 @@ ZONES = {
     4: "terres-foudroyees", 46: "steppes-ardentes", 28: "maleterres-de-l-ouest",
     139: "maleterres-de-l-est", 41: "defile-de-deuillevent", 1519: "hurlevent", 1537: "forgefer",
     1497: "fossoyeuse",
+    2597: "vallee-d-alterac", 3277: "goulet-des-warsong", 3358: "bassin-d-arathi",
 }
+
+CARTES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "forever", "cartes.json")
+with open(CARTES, encoding="utf-8") as f:
+    BORNES = json.load(f)["cartes"]
+
+
+def recaler(slug, x, y):
+    """Position sur la carte de Classic -> position sur la carte de Forever de la même zone.
+
+    Bornes [xMin, yMin, xMax, yMax] du monde : le haut de la carte est xMax (nord), la gauche yMax (ouest).
+    """
+    c = BORNES[slug]
+    if c["classic"] == c["forever"]:
+        return x, y
+    cx0, cy0, cx1, cy1 = c["classic"]
+    fx0, fy0, fx1, fy1 = c["forever"]
+    monde_y = cy1 - x / 100 * (cy1 - cy0)
+    monde_x = cx1 - y / 100 * (cx1 - cx0)
+    return (fy1 - monde_y) / (fy1 - fy0) * 100, (fx1 - monde_x) / (fx1 - fx0) * 100
 
 FACTIONS = {"A": "alliance", "H": "horde", "AH": "neutre"}
 
@@ -41,7 +66,9 @@ def au_bord(x, y, marge=5):
 
 def coords_retenues(coords, unite):
     """Une apparition = une seule zone : on retire les copies sur la carte voisine ou parente."""
-    coords = [(x, y, z) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
+    coords = [(*recaler(ZONES[z], x, y), z) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
+    # Recalée, une position peut sortir d'une carte de Forever plus petite (bord ouest des Carmines).
+    coords = [(x, y, z) for x, y, z in coords if 0 <= x <= 100 and 0 <= y <= 100]
     zones = {z for _, _, z in coords}
     parents = {VILLES[z] for z in zones if z in VILLES}
     coords = [c for c in coords if c[2] not in parents]

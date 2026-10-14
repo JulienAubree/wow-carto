@@ -1,9 +1,11 @@
-// Importe les zones de Classic (fonds de carte assemblés) et les points issus de pfQuest.
+// Importe les zones de WoW: Forever (cartes tirées du client) et les points de Classic issus de pfQuest.
 // Remplace la zone de démonstration. Idempotent : zones et catégories sont mises à jour,
-// les points importés ne sont ajoutés qu'une fois. Avec --remplacer, les points importés
-// jamais modifiés depuis (version 1) sont supprimés puis réimportés.
+// les points importés ne sont ajoutés qu'une fois. Quand le fichier de points change (points
+// recalés, nouvelle extraction) ou avec --remplacer, les points importés jamais modifiés depuis
+// (version 1) sont supprimés puis réimportés.
 //
 // Usage : npm run db:import-classic [-- --remplacer]
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -64,7 +66,7 @@ async function main() {
       continentId: continents[z.continent],
       niveauMin: z.niveaux?.[0] ?? null,
       niveauMax: z.niveaux?.[1] ?? null,
-      carteUrl: `/cartes/classic/${z.slug}.webp`,
+      carteUrl: `/cartes/forever/${z.slug}.webp`,
       largeur: LARGEUR,
       hauteur: HAUTEUR,
     };
@@ -81,22 +83,27 @@ async function main() {
 
   await supprimerDemo();
 
+  const contenu = gunzipSync(readFileSync(new URL("../data/classic/pois.json.gz", import.meta.url)));
+  // Version du contenu du fichier, gardée dans donnees.lot de chaque point importé.
+  const lot = createHash("sha256").update(contenu).digest("hex").slice(0, 12);
   const importes = sql`${schema.pois.donnees}->>'source' = ${SOURCE}`;
+  const autreLot = sql`${schema.pois.donnees}->>'lot' is distinct from ${lot}`;
   const [{ n: existants }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.pois).where(importes);
-  if (existants > 0 && !remplacer) {
-    console.log(`${existants} points importés déjà présents ; relancer avec --remplacer pour les réimporter.`);
+  const [{ n: perimes }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.pois).where(and(importes, autreLot));
+  if (existants > 0 && perimes === 0 && !remplacer) {
+    console.log(`${existants} points importés déjà à jour ; relancer avec --remplacer pour les réimporter.`);
     return;
   }
+  if (perimes > 0) console.log(`${perimes} points importés d'une version précédente du fichier : remplacement.`);
 
-  const fichier = new URL("../data/classic/pois.json.gz", import.meta.url);
-  const { points } = JSON.parse(gunzipSync(readFileSync(fichier)).toString("utf8")) as { points: PointImporte[] };
+  const { points } = JSON.parse(contenu.toString("utf8")) as { points: PointImporte[] };
   const zones = Object.fromEntries((await db.select({ id: schema.zones.id, slug: schema.zones.slug }).from(schema.zones)).map((z) => [z.slug, z.id]));
   const categories = Object.fromEntries(
     (await db.select({ id: schema.categories.id, slug: schema.categories.slug }).from(schema.categories)).map((c) => [c.slug, c.id]),
   );
 
   await db.transaction(async (tx) => {
-    if (remplacer) {
+    if (remplacer || perimes > 0) {
       // Les points modifiés depuis l'import (version > 1) ou référencés par la communauté sont gardés.
       const supprimes = await tx
         .delete(schema.pois)
@@ -121,11 +128,16 @@ async function main() {
       const categorieId = categories[p.categorie];
       const cleImport = cle(p);
       if (!zoneId || !categorieId || gardes.has(cleImport)) return [];
-      return [{ zoneId, categorieId, nom: p.nom, description: p.description, x: p.x, y: p.y, donnees: { ...p.donnees, cleImport } }];
+      return [{ zoneId, categorieId, nom: p.nom, description: p.description, x: p.x, y: p.y, donnees: { ...p.donnees, cleImport, lot } }];
     });
     for (let i = 0; i < lignes.length; i += 1000) {
       await tx.insert(schema.pois).values(lignes.slice(i, i + 1000));
     }
+    // Les points gardés (corrigés par la communauté) passent au lot courant : pas de remplacement au prochain import.
+    await tx
+      .update(schema.pois)
+      .set({ donnees: sql`${schema.pois.donnees} || jsonb_build_object('lot', ${lot}::text)` })
+      .where(and(importes, autreLot));
     console.log(`${lignes.length} points importés (sur ${points.length} dans le fichier, ${gardes.size} gardés).`);
   });
 }
