@@ -39,6 +39,12 @@ TAILLE_ADT = 1600 / 3
 DEMI_MONDE = 32 * TAILLE_ADT
 PARCELLE = TAILLE_ADT / 16
 FACTIONS = {1: "alliance", 2: "horde", 3: "neutre"}
+# Les deux raids d'Ahn'Qiraj renvoient le fantôme à la porte du Mur du scarabée, pas devant leur portail.
+DESCRIPTIONS_ENTREE = {
+    m: "Point où l'on revient en fantôme après une mort dans l'instance : la porte du Mur du scarabée. "
+    "Le portail de l'instance est plus loin, derrière la porte."
+    for m in (509, 531)
+}
 
 
 def table(dossier, nom):
@@ -156,7 +162,7 @@ def main():
         if not role or m["CorpseMapID"] not in CARTES_MONDE.values() or (x, y) == (0, 0) or "<unused>" in m["MapName_lang"]:
             continue
         ajouter("donjon", "Map", m["ID"], m["MapName_lang"], m["CorpseMapID"], (x, y), {"role": role},
-                "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.")
+                DESCRIPTIONS_ENTREE.get(m["ID"], "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée."))
 
     points.sort(key=lambda p: (p["zone"], p["categorie"], p["nom"], p["donnees"]["idClient"]))
     with open(sortie, "w", encoding="utf-8") as f:

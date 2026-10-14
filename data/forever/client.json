@@ -1204,7 +1204,7 @@
    "nom": "Ruines d'Ahn'Qiraj",
    "x": 29.03,
    "y": 92.82,
-   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance : la porte du Mur du scarabée. Le portail de l'instance est plus loin, derrière la porte.",
    "monde": [
     1,
     -8114.5,
@@ -1223,7 +1223,7 @@
    "nom": "Temple d'Ahn'Qiraj",
    "x": 29.02,
    "y": 92.7,
-   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance : la porte du Mur du scarabée. Le portail de l'instance est plus loin, derrière la porte.",
    "monde": [
     1,
     -8111.7,

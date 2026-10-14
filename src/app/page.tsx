@@ -55,9 +55,10 @@ export default function Accueil() {
         <button type="submit">Rechercher</button>
       </form>
       <p className={styles.note}>
-        Les cartes, les maîtres de vol et les entrées de donjons viennent du client français de WoW: Forever, les autres
-        points de WoW Classic 1.12 : parmi les nouvelles zones de Forever, le Mont Hyjal et les Rives Claires n&apos;ont
-        encore que leurs maîtres de vol, et les joueurs pourront bientôt proposer des ajouts et des corrections.
+        Les cartes, la position des maîtres de vol et les entrées de donjons viennent du client français de WoW: Forever,
+        les autres points de WoW Classic 1.12. Parmi les nouvelles zones de Forever, le Mont Hyjal et les Rives Claires
+        n&apos;ont encore que leurs maîtres de vol, les autres aucun point : les joueurs pourront bientôt proposer des
+        ajouts et des corrections.
       </p>
       <Suspense fallback={<p>Chargement des zones…</p>}>
         <ListeZones />
