@@ -25,6 +25,8 @@ export const ROLES: Record<string, string> = {
   battlemaster: "Maître de guerre",
   spirithealer: "Gardien des âmes",
   repair: "Réparations",
+  "entree-donjon": "Entrée de donjon",
+  "entree-raid": "Entrée de raid",
 };
 
 // Métier de récolte demandé, pour « Herboristerie 85 ».

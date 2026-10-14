@@ -5,7 +5,8 @@ des PNJ et des objets de WoW Classic 1.12, issues du projet VMaNGOS, avec les no
 
 Les positions de pfQuest sont relatives aux cartes de Classic. Quand une carte de Forever couvre
 une autre portion du monde (Mulgore, Hurlevent…), elles sont recalées grâce aux bornes de
-data/forever/cartes.json (voir scripts/cartes/forever.py).
+data/forever/cartes.json (voir scripts/cartes/forever.py). Les maîtres de vol sont placés sur les
+nœuds de vol de Forever de data/forever/client.json (voir scripts/donnees/extraire_client.py).
 
 Usage : python3 scripts/donnees/extraire_pfquest.py <pfQuest/db> <sortie.json>
 Le JSON produit est importé par scripts/importer-classic.ts.
@@ -34,9 +35,13 @@ ZONES = {
     2597: "vallee-d-alterac", 3277: "goulet-des-warsong", 3358: "bassin-d-arathi",
 }
 
-CARTES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "forever", "cartes.json")
-with open(CARTES, encoding="utf-8") as f:
+DONNEES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "forever")
+with open(os.path.join(DONNEES, "cartes.json"), encoding="utf-8") as f:
     BORNES = json.load(f)["cartes"]
+# Cartes du monde (Map) des vues terrain.
+MONDE = {"azeroth": 0, "kalimdor": 1}
+# Distance maximale, en mètres du jeu, entre un maître de vol de Classic et le nœud de vol de Forever.
+DISTANCE_VOL = 60
 
 
 def recaler(slug, x, y):
@@ -52,6 +57,54 @@ def recaler(slug, x, y):
     monde_y = cy1 - x / 100 * (cy1 - cy0)
     monde_x = cx1 - y / 100 * (cx1 - cx0)
     return (fy1 - monde_y) / (fy1 - fy0) * 100, (fx1 - monde_x) / (fx1 - fx0) * 100
+
+def vers_monde(slug, x, y):
+    """Position sur la carte de Forever d'une zone -> (x, y) du monde."""
+    fx0, fy0, fx1, fy1 = BORNES[slug]["forever"]
+    return fx1 - y / 100 * (fx1 - fx0), fy1 - x / 100 * (fy1 - fy0)
+
+
+def depuis_monde(slug, mx, my):
+    fx0, fy0, fx1, fy1 = BORNES[slug]["forever"]
+    return (fy1 - my) / (fy1 - fy0) * 100, (fx1 - mx) / (fx1 - fx0) * 100
+
+
+def placer_maitres_de_vol(points):
+    """Place chaque maître de vol sur le nœud de vol de Forever le plus proche, de sa faction, à moins de
+    DISTANCE_VOL mètres : la position de Classic devient celle du jeu. Un nœud ne sert qu'à un PNJ."""
+    chemin = os.path.join(DONNEES, "client.json")
+    if not os.path.exists(chemin):
+        return 0
+    with open(chemin, encoding="utf-8") as f:
+        noeuds = [p for p in json.load(f)["points"] if p["donnees"]["table"] == "TaxiNodes"]
+    paires = []
+    for i, p in enumerate(points):
+        carte = MONDE.get(BORNES[p["zone"]].get("terrain"))
+        if p["categorie"] != "maitre-vol" or carte is None:
+            continue
+        mx, my = vers_monde(p["zone"], p["x"], p["y"])
+        for n in noeuds:
+            c, nx, ny = n["monde"]
+            factions = {n["donnees"]["faction"], p["donnees"].get("faction", "neutre")}
+            if c != carte or (len(factions) > 1 and "neutre" not in factions):
+                continue
+            d = ((mx - nx) ** 2 + (my - ny) ** 2) ** 0.5
+            if d <= DISTANCE_VOL:
+                paires.append((d, i, n))
+    places, pris = set(), {}
+    for d, i, n in sorted(paires, key=lambda t: t[0]):
+        p, ident = points[i], n["donnees"]["idClient"]
+        if i in places or pris.get(ident, p["donnees"]["uniteId"]) != p["donnees"]["uniteId"]:
+            continue
+        places.add(i)
+        pris[ident] = p["donnees"]["uniteId"]
+        # L'identité du point reste sa position dans pfQuest.
+        p.setdefault("origine", [p["x"], p["y"]])
+        p["x"], p["y"] = (round(v, 2) for v in depuis_monde(p["zone"], n["monde"][1], n["monde"][2]))
+        p["donnees"]["position"] = "forever"
+        p["donnees"]["noeudVol"] = ident
+    return len(places)
+
 
 FACTIONS = {"A": "alliance", "H": "horde", "AH": "neutre"}
 
@@ -241,6 +294,7 @@ def main():
             donnees = {"metier": int(valeur)} if cle in ("mines", "herbs") and str(valeur).isdigit() and int(valeur) > 0 else {}
             ajouter(categorie, "objet", ident, e, nom, donnees)
 
+    places = placer_maitres_de_vol(points)
     points.sort(key=lambda p: (p["zone"], p["categorie"], p["nom"], p["x"], p["y"]))
     with open(sortie, "w", encoding="utf-8") as f:
         json.dump({"source": "pfQuest, Copyright (c) 2017-2021 Eric Mauser (Shagu), licence MIT (voir THIRD_PARTY_NOTICES.md) ; données VMaNGOS, WoW Classic 1.12", "points": points}, f, ensure_ascii=False, separators=(",", ":"))
@@ -248,6 +302,7 @@ def main():
     for p in points:
         compte[p["categorie"]] += 1
     print(len(points), "points", dict(sorted(compte.items())))
+    print(places, "maîtres de vol placés sur un nœud de vol de Forever")
 
 
 if __name__ == "__main__":

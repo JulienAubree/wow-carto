@@ -33,9 +33,11 @@ export type CategorieCarte = {
   couleur: string;
 };
 
-// Données variables selon la catégorie (voir scripts/donnees/extraire_pfquest.py).
+// Données variables selon la catégorie (voir scripts/donnees/extraire_pfquest.py et extraire_client.py).
 export type DonneesPoi = {
   source?: string;
+  // "forever" : point de pfQuest placé à la position relevée dans les fichiers du jeu.
+  position?: string;
   faction?: "alliance" | "horde" | "neutre";
   niveau?: string;
   elite?: boolean;

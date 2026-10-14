@@ -117,9 +117,11 @@ function fiche(p: PoiCarte, cat: CategorieCarte, type: string) {
     `<ul class="${styles.puces}">${puces.join("")}</ul>` +
     description +
     boutonsCopie(`/way ${coordsWay(p.x, p.y)} ${p.nom}`, p.id) +
-    (d.source === "pfquest"
-      ? `<p class="${ui.pilule} ${styles.avertissement}" title="Position reprise de WoW Classic 1.12 (pfQuest), à vérifier dans Forever">Position Classic à confirmer</p>`
-      : "") +
+    (d.source === "client" || d.position === "forever"
+      ? `<p class="${ui.pilule}" title="Position relevée dans les fichiers du jeu de WoW: Forever">Position de Forever</p>`
+      : d.source === "pfquest"
+        ? `<p class="${ui.pilule} ${styles.avertissement}" title="Position reprise de WoW Classic 1.12 (pfQuest), à vérifier dans Forever">Position Classic à confirmer</p>`
+        : "") +
     `</div>`
   );
 }

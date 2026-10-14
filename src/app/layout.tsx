@@ -78,7 +78,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="pied">
           <p>Site de fans non officiel, non affilié à Blizzard Entertainment.</p>
           <p>
-            Fonds de carte © Blizzard Entertainment · Points de départ : <a href="https://github.com/shagu/pfQuest">pfQuest</a>{" "}
+            Fonds de carte et points tirés des fichiers du jeu © Blizzard Entertainment · Autres points : <a href="https://github.com/shagu/pfQuest">pfQuest</a>{" "}
             (MIT), VMaNGOS · Contributions sous licence CC BY-SA 4.0.
           </p>
         </footer>
