@@ -1,24 +1,30 @@
-// Zones de WoW Classic, base de WoW: Forever. Les slugs sont ceux des URL (/carte/<slug>)
-// et des images public/cartes/classic/<slug>.webp (1002 x 668 px, voir scripts/cartes/).
-// Les nouvelles zones de Forever (Hyjal, Riverglades, Shen'dralas…) viendront s'ajouter ici.
+// Zones de WoW: Forever. Les slugs sont ceux des URL (/carte/<slug>) et des images
+// public/cartes/forever/<slug>.webp (1002 x 668 px), tirées du client français du jeu
+// (voir scripts/cartes/README.md). Ils doivent rester alignés sur scripts/cartes/forever.py.
+// Les niveaux sont ceux de Classic ; ceux des nouvelles zones de Forever ne sont pas encore connus.
 
-export type ZoneClassic = {
+export type Continent = "kalimdor" | "royaumes-de-l-est" | "autres-territoires" | "champs-de-bataille";
+
+export type Zone = {
   slug: string;
   nom: string;
-  continent: "kalimdor" | "royaumes-de-l-est";
+  continent: Continent;
   niveaux?: [number, number];
   ville?: boolean;
 };
 
-export const CONTINENTS = [
+// Seuls Kalimdor et les Royaumes de l'Est ont une carte de continent.
+export const CONTINENTS: { slug: Continent; nom: string; ordre: number }[] = [
   { slug: "kalimdor", nom: "Kalimdor", ordre: 1 },
   { slug: "royaumes-de-l-est", nom: "Royaumes de l'Est", ordre: 2 },
-] as const;
+  { slug: "autres-territoires", nom: "Autres territoires", ordre: 3 },
+  { slug: "champs-de-bataille", nom: "Champs de bataille", ordre: 4 },
+];
 
 const K = "kalimdor" as const;
 const E = "royaumes-de-l-est" as const;
 
-export const ZONES: ZoneClassic[] = [
+export const ZONES: Zone[] = [
   { slug: "durotar", nom: "Durotar", continent: K, niveaux: [1, 10] },
   { slug: "mulgore", nom: "Mulgore", continent: K, niveaux: [1, 10] },
   { slug: "teldrassil", nom: "Teldrassil", continent: K, niveaux: [1, 10] },
@@ -40,6 +46,9 @@ export const ZONES: ZoneClassic[] = [
   { slug: "orgrimmar", nom: "Orgrimmar", continent: K, ville: true },
   { slug: "pitons-du-tonnerre", nom: "Les Pitons-du-Tonnerre", continent: K, ville: true },
   { slug: "darnassus", nom: "Darnassus", continent: K, ville: true },
+  { slug: "mont-hyjal", nom: "Mont Hyjal", continent: K },
+  { slug: "shen-dralas", nom: "Shen'dralas", continent: K },
+  { slug: "iles-des-sombrelances", nom: "Îles des Sombrelances", continent: K },
 
   { slug: "dun-morogh", nom: "Dun Morogh", continent: E, niveaux: [1, 10] },
   { slug: "foret-d-elwynn", nom: "Forêt d'Elwynn", continent: E, niveaux: [1, 10] },
@@ -66,6 +75,13 @@ export const ZONES: ZoneClassic[] = [
   { slug: "hurlevent", nom: "Hurlevent", continent: E, ville: true },
   { slug: "forgefer", nom: "Forgefer", continent: E, ville: true },
   { slug: "fossoyeuse", nom: "Fossoyeuse", continent: E, ville: true },
+  { slug: "rives-claires", nom: "Rives Claires", continent: E },
+
+  { slug: "ile-de-zephras", nom: "Île de Zéphras", continent: "autres-territoires" },
+
+  { slug: "goulet-des-warsong", nom: "Goulet des Warsong", continent: "champs-de-bataille", niveaux: [10, 60] },
+  { slug: "bassin-d-arathi", nom: "Bassin d'Arathi", continent: "champs-de-bataille", niveaux: [20, 60] },
+  { slug: "vallee-d-alterac", nom: "Vallée d'Alterac", continent: "champs-de-bataille", niveaux: [51, 60] },
 ];
 
 // Catégories de points. Les slugs existants (seed de démonstration) sont conservés.

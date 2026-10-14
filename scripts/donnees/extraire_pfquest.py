@@ -3,10 +3,15 @@
 pfQuest (https://github.com/shagu/pfQuest, © Eric Mauser « Shagu ») embarque les positions
 des PNJ et des objets de WoW Classic 1.12, issues du projet VMaNGOS, avec les noms en français.
 
+Les positions de pfQuest sont relatives aux cartes de Classic. Quand une carte de Forever couvre
+une autre portion du monde (Mulgore, Hurlevent…), elles sont recalées grâce aux bornes de
+data/forever/cartes.json (voir scripts/cartes/forever.py).
+
 Usage : python3 scripts/donnees/extraire_pfquest.py <pfQuest/db> <sortie.json>
 Le JSON produit est importé par scripts/importer-classic.ts.
 """
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -26,7 +31,27 @@ ZONES = {
     4: "terres-foudroyees", 46: "steppes-ardentes", 28: "maleterres-de-l-ouest",
     139: "maleterres-de-l-est", 41: "defile-de-deuillevent", 1519: "hurlevent", 1537: "forgefer",
     1497: "fossoyeuse",
+    2597: "vallee-d-alterac", 3277: "goulet-des-warsong", 3358: "bassin-d-arathi",
 }
+
+CARTES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "forever", "cartes.json")
+with open(CARTES, encoding="utf-8") as f:
+    BORNES = json.load(f)["cartes"]
+
+
+def recaler(slug, x, y):
+    """Position sur la carte de Classic -> position sur la carte de Forever de la même zone.
+
+    Bornes [xMin, yMin, xMax, yMax] du monde : le haut de la carte est xMax (nord), la gauche yMax (ouest).
+    """
+    c = BORNES[slug]
+    if c["classic"] == c["forever"]:
+        return x, y
+    cx0, cy0, cx1, cy1 = c["classic"]
+    fx0, fy0, fx1, fy1 = c["forever"]
+    monde_y = cy1 - x / 100 * (cy1 - cy0)
+    monde_x = cx1 - y / 100 * (cx1 - cx0)
+    return (fy1 - monde_y) / (fy1 - fy0) * 100, (fx1 - monde_x) / (fx1 - fx0) * 100
 
 FACTIONS = {"A": "alliance", "H": "horde", "AH": "neutre"}
 
@@ -40,14 +65,19 @@ def au_bord(x, y, marge=5):
 
 
 def coords_retenues(coords, unite):
-    """Une apparition = une seule zone : on retire les copies sur la carte voisine ou parente."""
-    coords = [(x, y, z) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
-    zones = {z for _, _, z in coords}
+    """Une apparition = une seule zone : on retire les copies sur la carte voisine ou parente.
+
+    Renvoie [(x, y, zone, origine)] : origine est la position sur la carte de Classic, avant recalage.
+    """
+    coords = [(*recaler(ZONES[z], x, y), z, (x, y)) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
+    # Recalée, une position peut sortir d'une carte de Forever plus petite (bord ouest des Carmines).
+    coords = [c for c in coords if 0 <= c[0] <= 100 and 0 <= c[1] <= 100]
+    zones = {c[2] for c in coords}
     parents = {VILLES[z] for z in zones if z in VILLES}
     coords = [c for c in coords if c[2] not in parents]
-    if unite and len({z for _, _, z in coords}) > 1:
+    if unite and len({c[2] for c in coords}) > 1:
         # Projection sur une carte voisine : elle tombe au bord de cette carte-là.
-        loin_du_bord = {z for x, y, z in coords if not au_bord(x, y)}
+        loin_du_bord = {c[2] for c in coords if not au_bord(c[0], c[1])}
         coords = [c for c in coords if c[2] in loin_du_bord or not loin_du_bord]
     # Restent les cartes qui se chevauchent vraiment (Moulin-de-Tarren visible aussi sur Alterac),
     # comme dans le jeu.
@@ -147,17 +177,21 @@ def main():
     vus = set()
 
     def ajouter(categorie, source, ident, entree, nom, donnees, description=None):
-        for x, y, zone in coords_retenues(entree["coords"], source == "unite"):
+        for x, y, zone, origine in coords_retenues(entree["coords"], source == "unite"):
             slug = ZONES[zone]
             cle = (categorie, ident, slug, round(x, 1), round(y, 1))
             if cle in vus:
                 continue
             vus.add(cle)
-            points.append({
+            point = {
                 "zone": slug, "categorie": categorie, "nom": nom, "x": x, "y": y,
                 "description": description,
                 "donnees": {"source": "pfquest", f"{source}Id": abs(ident), **{k: v for k, v in donnees.items() if v not in (None, "")}},
-            })
+            }
+            if origine != (x, y):
+                # Position dans pfQuest : l'importeur en tire l'identité du point, stable d'un recalage à l'autre.
+                point["origine"] = list(origine)
+            points.append(point)
 
     def unite(ident):
         nom = noms_u.get(ident) or noms_u_en.get(ident)

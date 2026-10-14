@@ -3,6 +3,9 @@ import Link from "next/link";
 import { listerZones } from "@/lib/queries";
 import styles from "./accueil.module.css";
 
+// Groupes qui ont une carte de continent dans public/cartes/forever/.
+const CARTES_CONTINENTS = new Set(["kalimdor", "royaumes-de-l-est"]);
+
 async function ListeZones() {
   const zones = await listerZones();
   if (zones.length === 0) return <p>Aucune zone pour l&apos;instant.</p>;
@@ -12,14 +15,18 @@ async function ListeZones() {
     if (!continents.has(cle)) continents.set(cle, { nom: z.continentNom ?? "Autres zones", slug: cle, zones: [] });
     continents.get(cle)!.zones.push(z);
   }
+  // Ordre alphabétique français (« Îles » avec les I) parmi les zones de même niveau.
+  for (const c of continents.values()) {
+    c.zones.sort((a, b) => (a.niveauMin ?? Infinity) - (b.niveauMin ?? Infinity) || a.nom.localeCompare(b.nom, "fr"));
+  }
   return (
     <div className={styles.continents}>
       {[...continents.values()].map((c) => (
         <section key={c.slug} className={styles.continent}>
           <h2>{c.nom}</h2>
-          {c.slug !== "autres" && (
+          {CARTES_CONTINENTS.has(c.slug) && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/cartes/classic/${c.slug}.webp`} alt={`Carte de ${c.nom}`} width={1002} height={668} />
+            <img src={`/cartes/forever/${c.slug}.webp`} alt={`Carte de ${c.nom}`} width={1002} height={668} />
           )}
           <ul>
             {c.zones.map((z) => (
@@ -48,8 +55,8 @@ export default function Accueil() {
         <button type="submit">Rechercher</button>
       </form>
       <p className={styles.note}>
-        Les points actuels viennent de WoW Classic 1.12. Forever modifie certaines zones : les joueurs pourront bientôt
-        proposer des corrections et les nouvelles zones.
+        Les cartes viennent du client français de WoW: Forever. Les points viennent de WoW Classic 1.12 : les nouvelles
+        zones de Forever n&apos;en ont pas encore, et les joueurs pourront bientôt proposer des ajouts et des corrections.
       </p>
       <Suspense fallback={<p>Chargement des zones…</p>}>
         <ListeZones />

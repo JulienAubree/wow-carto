@@ -1,6 +1,7 @@
 import { asc, eq, and, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import type { CategorieCarte, DonneesPoi, PoiCarte, ResultatRecherche, ZoneCarte } from "./types";
+import { bornesZone, mondeZone } from "./monde";
+import type { CategorieCarte, DonneesPoi, EtiquetteZone, PoiCarte, ResultatRecherche, ZoneCarte } from "./types";
 
 export async function listerZones() {
   return db
@@ -59,10 +60,29 @@ export async function chargerZone(
   ]);
 
   return {
-    zone: { slug: zone.slug, nom: zone.nom, carteUrl: zone.carteUrl, largeur: zone.largeur, hauteur: zone.hauteur },
+    zone: {
+      slug: zone.slug,
+      nom: zone.nom,
+      carteUrl: zone.carteUrl,
+      largeur: zone.largeur,
+      hauteur: zone.hauteur,
+      monde: mondeZone(zone.slug),
+    },
     categories,
     pois: pois.map((p) => ({ ...p, donnees: p.donnees as DonneesPoi })),
   };
+}
+
+// Noms des autres zones de la même vue terrain, placés au centre de leur carte.
+export async function etiquettesVoisines(slug: string): Promise<EtiquetteZone[]> {
+  const terrain = mondeZone(slug)?.terrain;
+  if (!terrain) return [];
+  return (await listerZones()).flatMap((z) => {
+    const b = bornesZone(z.slug);
+    if (z.slug === slug || !b || mondeZone(z.slug)?.terrain !== terrain) return [];
+    const niveaux = z.niveauMin != null ? `${z.niveauMin}-${z.niveauMax}` : null;
+    return [{ slug: z.slug, nom: z.nom, niveaux, centre: [(b[0] + b[2]) / 2, -(b[1] + b[3]) / 2] as [number, number] }];
+  });
 }
 
 // Accents retirés côté base (sans extension) et côté requête : « acierite » trouve « Aciérite ».

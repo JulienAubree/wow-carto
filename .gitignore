@@ -40,3 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 !.env.example
+
+# python
+__pycache__/
+
+# extraction des cartes (scripts/cartes/client) : tables, textures et images de travail
+/scripts/cartes/client/forever/
+/scripts/cartes/client/sortie/
+/scripts/cartes/client/*.csv
