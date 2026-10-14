@@ -43,6 +43,8 @@ const ROLES: Record<string, string> = {
   battlemaster: "Maître de guerre",
   spirithealer: "Gardien des âmes",
   repair: "Réparations",
+  "entree-donjon": "Entrée de donjon",
+  "entree-raid": "Entrée de raid",
 };
 
 function echapper(texte: string) {
@@ -79,7 +81,11 @@ function fiche(p: PoiCarte, cat: CategorieCarte) {
     `<strong>${echapper(p.nom)}</strong><br><em>${echapper(details.join(" · "))}</em>` +
     (p.description ? `<p>${echapper(p.description)}</p>` : "") +
     `<p><code>/way ${formatCoords(p.x, p.y).replace(",", "")}</code></p>` +
-    (d.source === "pfquest" ? `<small>Position de Classic 1.12 (pfQuest), à confirmer dans Forever.</small>` : "")
+    (d.source === "client" || d.position === "forever"
+      ? `<small>Position tirée des fichiers du jeu (WoW: Forever).</small>`
+      : d.source === "pfquest"
+        ? `<small>Position de Classic 1.12 (pfQuest), à confirmer dans Forever.</small>`
+        : "")
   );
 }
 
@@ -184,7 +190,9 @@ export default function ZoneMap({ zone, categories, pois, etiquettes = AUCUNE_ET
       (monde.carteParDefaut ? parchemin : terrain).addTo(map);
       L.control.layers({ Terrain: terrain, "Carte du jeu": parchemin }, undefined, { collapsed: false }).addTo(map);
       map.fitBounds(limites);
-      map.setMinZoom(Math.max(0, map.getZoom() - 1));
+      // Zoom minimal entier : avec un zoom minimal fractionnaire, markercluster n'affiche jamais les
+      // points isolés à tous les niveaux (un point seul dans sa zone, un coffre à l'écart).
+      map.setMinZoom(Math.max(0, Math.round(map.getZoom() - 1)));
       map.createPane("etiquettes").style.zIndex = "450";
       for (const e of etiquettes) {
         const m = L.marker(e.centre, { icon: etiquette(e), pane: "etiquettes", keyboard: false }).addTo(map);

@@ -1,0 +1,1867 @@
+{
+ "source": "Client WoW: Forever 1.60.1.70205 frFR (tables du jeu)",
+ "points": [
+  {
+   "zone": "azshara",
+   "categorie": "maitre-vol",
+   "nom": "Halte de Talrendis",
+   "x": 11.9,
+   "y": 77.48,
+   "description": null,
+   "monde": [
+    1,
+    2722.0,
+    -3880.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 64,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "azshara",
+   "categorie": "maitre-vol",
+   "nom": "Valormok",
+   "x": 21.95,
+   "y": 49.69,
+   "description": null,
+   "monde": [
+    1,
+    3661.5,
+    -4390.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 44,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "berceau-de-l-hiver",
+   "categorie": "maitre-vol",
+   "nom": "Long-guet",
+   "x": 62.33,
+   "y": 36.64,
+   "description": null,
+   "monde": [
+    1,
+    6799.2,
+    -4742.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 52,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "berceau-de-l-hiver",
+   "categorie": "maitre-vol",
+   "nom": "Long-guet",
+   "x": 60.49,
+   "y": 36.34,
+   "description": null,
+   "monde": [
+    1,
+    6813.1,
+    -4611.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 53,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "bois-de-la-penombre",
+   "categorie": "maitre-vol",
+   "nom": "Darkshire",
+   "x": 77.59,
+   "y": 44.38,
+   "description": null,
+   "monde": [
+    0,
+    -10515.5,
+    -1261.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 12,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "clairieres-de-tirisfal",
+   "categorie": "donjon",
+   "nom": "Monastère écarlate",
+   "x": 85.08,
+   "y": 31.38,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    2892.2,
+    -811.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 189,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "clairieres-de-tirisfal",
+   "categorie": "maitre-vol",
+   "nom": "Undercity",
+   "x": 61.2,
+   "y": 75.32,
+   "description": null,
+   "monde": [
+    0,
+    1568.6,
+    268.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 11,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "contreforts-de-hautebrande",
+   "categorie": "maitre-vol",
+   "nom": "Moulin-de-Tarren",
+   "x": 60.21,
+   "y": 18.75,
+   "description": null,
+   "monde": [
+    0,
+    -0.1,
+    -859.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 13,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "contreforts-de-hautebrande",
+   "categorie": "maitre-vol",
+   "nom": "Southshore",
+   "x": 49.44,
+   "y": 52.1,
+   "description": null,
+   "monde": [
+    0,
+    -711.5,
+    -515.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 14,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "cratere-d-un-goro",
+   "categorie": "maitre-vol",
+   "nom": "Refuge des Marshal",
+   "x": 45.3,
+   "y": 5.97,
+   "description": null,
+   "monde": [
+    1,
+    -6113.8,
+    -1142.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 79,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "desolace",
+   "categorie": "donjon",
+   "nom": "Maraudon",
+   "x": 29.1,
+   "y": 62.87,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -1432.7,
+    2925.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 349,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "desolace",
+   "categorie": "maitre-vol",
+   "nom": "Combe de Nijel",
+   "x": 64.67,
+   "y": 10.44,
+   "description": null,
+   "monde": [
+    1,
+    139.2,
+    1325.8
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 37,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "desolace",
+   "categorie": "maitre-vol",
+   "nom": "Proie-de-l'Ombre",
+   "x": 21.56,
+   "y": 74.04,
+   "description": null,
+   "monde": [
+    1,
+    -1767.6,
+    3263.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 38,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "dun-morogh",
+   "categorie": "donjon",
+   "nom": "Gnomeregan",
+   "x": 17.67,
+   "y": 39.15,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -5162.7,
+    931.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 90,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "dun-morogh",
+   "categorie": "maitre-vol",
+   "nom": "Ironforge",
+   "x": 60.05,
+   "y": 28.77,
+   "description": null,
+   "monde": [
+    0,
+    -4821.8,
+    -1155.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 6,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "feralas",
+   "categorie": "donjon",
+   "nom": "Hache-tripes",
+   "x": 62.04,
+   "y": 33.27,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -3908.0,
+    1130.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 429,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "feralas",
+   "categorie": "maitre-vol",
+   "nom": "Camp Mojache",
+   "x": 75.43,
+   "y": 44.31,
+   "description": null,
+   "monde": [
+    1,
+    -4419.9,
+    199.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 42,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "feralas",
+   "categorie": "maitre-vol",
+   "nom": "Feathermoon",
+   "x": 30.26,
+   "y": 43.32,
+   "description": null,
+   "monde": [
+    1,
+    -4373.8,
+    3338.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 41,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "feralas",
+   "categorie": "maitre-vol",
+   "nom": "Thalanaar",
+   "x": 89.46,
+   "y": 45.87,
+   "description": null,
+   "monde": [
+    1,
+    -4491.9,
+    -775.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 31,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "foret-des-pins-argentes",
+   "categorie": "donjon",
+   "nom": "Donjon d'Ombrecroc",
+   "x": 44.72,
+   "y": 67.77,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -231.0,
+    1571.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 33,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "foret-des-pins-argentes",
+   "categorie": "maitre-vol",
+   "nom": "Le Sépulcre",
+   "x": 45.56,
+   "y": 42.42,
+   "description": null,
+   "monde": [
+    0,
+    478.9,
+    1536.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 10,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "gangrebois",
+   "categorie": "maitre-vol",
+   "nom": "Clairière de Griffebranche",
+   "x": 62.46,
+   "y": 24.19,
+   "description": null,
+   "monde": [
+    1,
+    6205.9,
+    -1949.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 65,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "gangrebois",
+   "categorie": "maitre-vol",
+   "nom": "Poste de la Vénéneuse",
+   "x": 34.42,
+   "y": 53.87,
+   "description": null,
+   "monde": [
+    1,
+    5068.4,
+    -337.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 48,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "gorge-des-vents-brulants",
+   "categorie": "donjon",
+   "nom": "Profondeurs de Blackrock",
+   "x": 27.15,
+   "y": 72.48,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -7178.1,
+    -928.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 230,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "gorge-des-vents-brulants",
+   "categorie": "maitre-vol",
+   "nom": "Halte du Thorium",
+   "x": 37.89,
+   "y": 30.43,
+   "description": null,
+   "monde": [
+    0,
+    -6552.6,
+    -1168.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 74,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "gorge-des-vents-brulants",
+   "categorie": "maitre-vol",
+   "nom": "Halte du Thorium",
+   "x": 34.83,
+   "y": 30.58,
+   "description": null,
+   "monde": [
+    0,
+    -6554.9,
+    -1100.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 75,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "hautes-terres-d-arathi",
+   "categorie": "maitre-vol",
+   "nom": "Refuge de l'Ornière",
+   "x": 45.79,
+   "y": 46.13,
+   "description": null,
+   "monde": [
+    0,
+    -1240.5,
+    -2515.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 16,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "hautes-terres-d-arathi",
+   "categorie": "maitre-vol",
+   "nom": "Trépas-d'Orgrim",
+   "x": 73.06,
+   "y": 32.62,
+   "description": null,
+   "monde": [
+    0,
+    -916.3,
+    -3496.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 17,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "hurlevent",
+   "categorie": "donjon",
+   "nom": "Prison de Stormwind",
+   "x": 50.35,
+   "y": 66.18,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -8762.4,
+    848.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 34,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "hurlevent",
+   "categorie": "maitre-vol",
+   "nom": "Stormwind",
+   "x": 71.61,
+   "y": 72.25,
+   "description": null,
+   "monde": [
+    0,
+    -8832.8,
+    478.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 2,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "les-carmines",
+   "categorie": "maitre-vol",
+   "nom": "Lakeshire",
+   "x": 25.34,
+   "y": 58.99,
+   "description": null,
+   "monde": [
+    0,
+    -9429.1,
+    -2231.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 5,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "les-hinterlands",
+   "categorie": "maitre-vol",
+   "nom": "Nid-de-l'Aigle",
+   "x": 11.11,
+   "y": 46.09,
+   "description": null,
+   "monde": [
+    0,
+    283.7,
+    -2002.8
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 43,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "les-hinterlands",
+   "categorie": "maitre-vol",
+   "nom": "Village des Revantusk",
+   "x": 81.7,
+   "y": 81.89,
+   "description": null,
+   "monde": [
+    0,
+    -635.3,
+    -4720.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 76,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "les-paluns",
+   "categorie": "maitre-vol",
+   "nom": "Port de Menethil",
+   "x": 9.52,
+   "y": 59.66,
+   "description": null,
+   "monde": [
+    0,
+    -3792.3,
+    -783.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 7,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "loch-modan",
+   "categorie": "maitre-vol",
+   "nom": "Thelsamar",
+   "x": 33.94,
+   "y": 50.79,
+   "description": null,
+   "monde": [
+    0,
+    -5421.9,
+    -2930.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 8,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "donjon",
+   "nom": "Stratholme",
+   "x": 26.09,
+   "y": 10.44,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    3392.3,
+    -3378.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 329,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "maitre-vol",
+   "nom": "Chapelle de l'Espoir de Lumière",
+   "x": 71.7,
+   "y": 49.56,
+   "description": null,
+   "monde": [
+    0,
+    2271.1,
+    -5340.8
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 67,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "maitre-vol",
+   "nom": "Chapelle de l'Espoir de Lumière",
+   "x": 70.45,
+   "y": 47.59,
+   "description": null,
+   "monde": [
+    0,
+    2327.4,
+    -5286.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 68,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "maitre-vol",
+   "nom": "Tour de Pestebois",
+   "x": 18.45,
+   "y": 24.17,
+   "description": null,
+   "monde": [
+    0,
+    2998.7,
+    -3050.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 84,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "maitre-vol",
+   "nom": "Tour de garde de la couronne",
+   "x": 32.59,
+   "y": 63.98,
+   "description": null,
+   "monde": [
+    0,
+    1857.6,
+    -3658.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 87,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "maitre-vol",
+   "nom": "Tour du Col du nord",
+   "x": 47.16,
+   "y": 20.31,
+   "description": null,
+   "monde": [
+    0,
+    3109.3,
+    -4285.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 85,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-est",
+   "categorie": "maitre-vol",
+   "nom": "Tour du Mur d'est",
+   "x": 57.8,
+   "y": 41.6,
+   "description": null,
+   "monde": [
+    0,
+    2499.2,
+    -4742.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 86,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-ouest",
+   "categorie": "donjon",
+   "nom": "Scholomance",
+   "x": 69.05,
+   "y": 72.97,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    1274.8,
+    -2552.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 289,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "maleterres-de-l-ouest",
+   "categorie": "maitre-vol",
+   "nom": "Camp du Noroît",
+   "x": 42.95,
+   "y": 84.95,
+   "description": null,
+   "monde": [
+    0,
+    931.3,
+    -1430.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 66,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "marais-des-chagrins",
+   "categorie": "donjon",
+   "nom": "Temple englouti",
+   "x": 77.3,
+   "y": 35.92,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -10170.1,
+    -3996.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 109,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "marais-des-chagrins",
+   "categorie": "maitre-vol",
+   "nom": "Stonard",
+   "x": 46.05,
+   "y": 54.68,
+   "description": null,
+   "monde": [
+    0,
+    -10457.0,
+    -3279.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 56,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "marche-de-l-ouest",
+   "categorie": "donjon",
+   "nom": "Mortemines",
+   "x": 38.16,
+   "y": 77.48,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -11207.8,
+    1681.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 36,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "marche-de-l-ouest",
+   "categorie": "maitre-vol",
+   "nom": "Colline des sentinelles",
+   "x": 56.57,
+   "y": 52.67,
+   "description": null,
+   "monde": [
+    0,
+    -10628.9,
+    1036.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 4,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "marecage-d-aprefange",
+   "categorie": "donjon",
+   "nom": "Repaire d'Onyxia",
+   "x": 52.9,
+   "y": 77.71,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -4753.3,
+    -3752.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 249,
+    "role": "entree-raid"
+   }
+  },
+  {
+   "zone": "marecage-d-aprefange",
+   "categorie": "maitre-vol",
+   "nom": "Mur-de-Fougères",
+   "x": 35.57,
+   "y": 31.83,
+   "description": null,
+   "monde": [
+    1,
+    -3147.4,
+    -2842.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 55,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "marecage-d-aprefange",
+   "categorie": "maitre-vol",
+   "nom": "Theramore",
+   "x": 67.46,
+   "y": 51.2,
+   "description": null,
+   "monde": [
+    1,
+    -3825.4,
+    -4516.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 32,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "mille-pointes",
+   "categorie": "maitre-vol",
+   "nom": "Poste de Librevent",
+   "x": 45.02,
+   "y": 49.13,
+   "description": null,
+   "monde": [
+    1,
+    -5407.7,
+    -2414.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 30,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "mont-hyjal",
+   "categorie": "maitre-vol",
+   "nom": "Contreforts Souillés",
+   "x": 55.1,
+   "y": 82.55,
+   "description": null,
+   "monde": [
+    1,
+    4393.5,
+    -2836.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 3242,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "mont-hyjal",
+   "categorie": "maitre-vol",
+   "nom": "Sommet d’Éternité",
+   "x": 68.64,
+   "y": 44.11,
+   "description": null,
+   "monde": [
+    1,
+    5283.2,
+    -3306.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 559,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "orgrimmar",
+   "categorie": "donjon",
+   "nom": "Gouffre de Ragefeu",
+   "x": 52.96,
+   "y": 48.87,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    1816.8,
+    -4423.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 389,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "orgrimmar",
+   "categorie": "maitre-vol",
+   "nom": "Orgrimmar",
+   "x": 45.28,
+   "y": 63.75,
+   "description": null,
+   "monde": [
+    1,
+    1677.6,
+    -4315.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 23,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "orneval",
+   "categorie": "donjon",
+   "nom": "Profondeurs de Brassenoire",
+   "x": 16.5,
+   "y": 11.03,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    4249.1,
+    748.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 48,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "orneval",
+   "categorie": "maitre-vol",
+   "nom": "Astranaar",
+   "x": 34.5,
+   "y": 48.01,
+   "description": null,
+   "monde": [
+    1,
+    2827.3,
+    -289.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 28,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "orneval",
+   "categorie": "maitre-vol",
+   "nom": "Avant-poste de Zoram'gar",
+   "x": 12.19,
+   "y": 33.77,
+   "description": null,
+   "monde": [
+    1,
+    3374.7,
+    997.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 58,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "orneval",
+   "categorie": "maitre-vol",
+   "nom": "Poste de Bois-brisé",
+   "x": 73.26,
+   "y": 61.67,
+   "description": null,
+   "monde": [
+    1,
+    2302.4,
+    -2524.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 61,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "pitons-du-tonnerre",
+   "categorie": "maitre-vol",
+   "nom": "Thunder Bluff",
+   "x": 46.65,
+   "y": 49.9,
+   "description": null,
+   "monde": [
+    1,
+    -1197.2,
+    29.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 22,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "reflet-de-lune",
+   "categorie": "maitre-vol",
+   "nom": "Havrenuit",
+   "x": 44.28,
+   "y": 45.34,
+   "description": null,
+   "monde": [
+    1,
+    7793.6,
+    -2403.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 62,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "reflet-de-lune",
+   "categorie": "maitre-vol",
+   "nom": "Havrenuit",
+   "x": 44.31,
+   "y": 45.72,
+   "description": null,
+   "monde": [
+    1,
+    7787.7,
+    -2404.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 63,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "reflet-de-lune",
+   "categorie": "maitre-vol",
+   "nom": "Reflet-de-Lune",
+   "x": 47.91,
+   "y": 67.11,
+   "description": null,
+   "monde": [
+    1,
+    7458.5,
+    -2487.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 49,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "reflet-de-lune",
+   "categorie": "maitre-vol",
+   "nom": "Reflet-de-Lune",
+   "x": 32.15,
+   "y": 66.33,
+   "description": null,
+   "monde": [
+    1,
+    7470.4,
+    -2123.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 69,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "rives-claires",
+   "categorie": "maitre-vol",
+   "nom": "Donjon de Fort-Lointain",
+   "x": 60.59,
+   "y": 81.57,
+   "description": null,
+   "monde": [
+    0,
+    -9104.1,
+    -4830.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 3276,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "rives-claires",
+   "categorie": "maitre-vol",
+   "nom": "Rog’mar",
+   "x": 59.61,
+   "y": 45.06,
+   "description": null,
+   "monde": [
+    0,
+    -7923.7,
+    -4783.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 3203,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "serres-rocheuses",
+   "categorie": "maitre-vol",
+   "nom": "Pic des Serres-Rocheuses",
+   "x": 36.54,
+   "y": 7.23,
+   "description": null,
+   "monde": [
+    1,
+    2681.1,
+    1461.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 33,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "serres-rocheuses",
+   "categorie": "maitre-vol",
+   "nom": "Retraite de Roche-Soleil",
+   "x": 45.16,
+   "y": 59.89,
+   "description": null,
+   "monde": [
+    1,
+    966.6,
+    1040.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 29,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "silithus",
+   "categorie": "donjon",
+   "nom": "Ruines d'Ahn'Qiraj",
+   "x": 29.03,
+   "y": 92.82,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -8114.5,
+    1526.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 509,
+    "role": "entree-raid"
+   }
+  },
+  {
+   "zone": "silithus",
+   "categorie": "donjon",
+   "nom": "Temple d'Ahn'Qiraj",
+   "x": 29.02,
+   "y": 92.7,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -8111.7,
+    1526.8
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 531,
+    "role": "entree-raid"
+   }
+  },
+  {
+   "zone": "silithus",
+   "categorie": "maitre-vol",
+   "nom": "Fort cénarien",
+   "x": 48.83,
+   "y": 36.72,
+   "description": null,
+   "monde": [
+    1,
+    -6811.4,
+    836.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 72,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "silithus",
+   "categorie": "maitre-vol",
+   "nom": "Fort cénarien",
+   "x": 50.68,
+   "y": 34.59,
+   "description": null,
+   "monde": [
+    1,
+    -6761.8,
+    772.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 73,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "sombrivage",
+   "categorie": "maitre-vol",
+   "nom": "Auberdine",
+   "x": 36.4,
+   "y": 45.62,
+   "description": null,
+   "monde": [
+    1,
+    6341.4,
+    557.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 26,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "steppes-ardentes",
+   "categorie": "donjon",
+   "nom": "Cœur du Magma",
+   "x": 26.29,
+   "y": 24.55,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -7510.6,
+    -1036.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 409,
+    "role": "entree-raid"
+   }
+  },
+  {
+   "zone": "steppes-ardentes",
+   "categorie": "donjon",
+   "nom": "Pic Blackrock",
+   "x": 32.99,
+   "y": 25.17,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -7522.5,
+    -1233.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 229,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "steppes-ardentes",
+   "categorie": "donjon",
+   "nom": "Repaire de l'Aile noire",
+   "x": 32.5,
+   "y": 32.38,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -7663.4,
+    -1218.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 469,
+    "role": "entree-raid"
+   }
+  },
+  {
+   "zone": "steppes-ardentes",
+   "categorie": "maitre-vol",
+   "nom": "Corniches des flammes",
+   "x": 65.58,
+   "y": 24.22,
+   "description": null,
+   "monde": [
+    0,
+    -7504.0,
+    -2187.5
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 70,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "steppes-ardentes",
+   "categorie": "maitre-vol",
+   "nom": "Veille de Morgan",
+   "x": 84.38,
+   "y": 68.3,
+   "description": null,
+   "monde": [
+    0,
+    -8364.6,
+    -2738.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 71,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "tanaris",
+   "categorie": "donjon",
+   "nom": "Zul'Farrak",
+   "x": 38.73,
+   "y": 19.9,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -6790.6,
+    -2891.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 209,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "tanaris",
+   "categorie": "maitre-vol",
+   "nom": "Gadgetzan",
+   "x": 50.95,
+   "y": 29.33,
+   "description": null,
+   "monde": [
+    1,
+    -7224.0,
+    -3734.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 39,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "tanaris",
+   "categorie": "maitre-vol",
+   "nom": "Gadgetzan",
+   "x": 51.62,
+   "y": 25.52,
+   "description": null,
+   "monde": [
+    1,
+    -7048.9,
+    -3780.4
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 40,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "tarides",
+   "categorie": "donjon",
+   "nom": "Cavernes des Lamentations",
+   "x": 47.69,
+   "y": 34.98,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -751.1,
+    -2209.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 43,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "tarides",
+   "categorie": "donjon",
+   "nom": "Kraal de Tranchebauge",
+   "x": 42.27,
+   "y": 89.87,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -4459.4,
+    -1660.2
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 47,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "tarides",
+   "categorie": "donjon",
+   "nom": "Souilles de Tranchebauge",
+   "x": 50.91,
+   "y": 92.88,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    1,
+    -4662.9,
+    -2535.9
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 129,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "tarides",
+   "categorie": "maitre-vol",
+   "nom": "Camp Taurajo",
+   "x": 44.46,
+   "y": 59.1,
+   "description": null,
+   "monde": [
+    1,
+    -2380.7,
+    -1882.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 77,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "tarides",
+   "categorie": "maitre-vol",
+   "nom": "La Croisée",
+   "x": 51.5,
+   "y": 30.41,
+   "description": null,
+   "monde": [
+    1,
+    -441.8,
+    -2596.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 25,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "tarides",
+   "categorie": "maitre-vol",
+   "nom": "Ratchet",
+   "x": 63.12,
+   "y": 37.11,
+   "description": null,
+   "monde": [
+    1,
+    -894.6,
+    -3773.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 80,
+    "faction": "neutre"
+   }
+  },
+  {
+   "zone": "teldrassil",
+   "categorie": "maitre-vol",
+   "nom": "Rut'theran",
+   "x": 58.4,
+   "y": 93.93,
+   "description": null,
+   "monde": [
+    1,
+    8643.6,
+    841.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 27,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "terres-foudroyees",
+   "categorie": "maitre-vol",
+   "nom": "Rempart-du-Néant",
+   "x": 65.49,
+   "y": 24.43,
+   "description": null,
+   "monde": [
+    0,
+    -11112.2,
+    -3435.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 45,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "terres-ingrates",
+   "categorie": "donjon",
+   "nom": "Uldaman",
+   "x": 35.21,
+   "y": 10.29,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -6060.2,
+    -2955.0
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 70,
+    "role": "entree-donjon"
+   }
+  },
+  {
+   "zone": "terres-ingrates",
+   "categorie": "maitre-vol",
+   "nom": "Kargath",
+   "x": 4.06,
+   "y": 44.89,
+   "description": null,
+   "monde": [
+    0,
+    -6634.0,
+    -2180.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 21,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "vallee-d-alterac",
+   "categorie": "maitre-vol",
+   "nom": "Donjon Frostwolf",
+   "x": 49.58,
+   "y": 85.69,
+   "description": null,
+   "monde": [
+    30,
+    -1335.4,
+    -319.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 60,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "vallee-d-alterac",
+   "categorie": "maitre-vol",
+   "nom": "Dun Baldar",
+   "x": 43.14,
+   "y": 18.1,
+   "description": null,
+   "monde": [
+    30,
+    574.2,
+    -46.7
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 59,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "vallee-de-strangleronce",
+   "categorie": "donjon",
+   "nom": "Zul'Gurub",
+   "x": 53.99,
+   "y": 17.57,
+   "description": "Point où l'on revient en fantôme après une mort dans l'instance, devant l'entrée.",
+   "monde": [
+    0,
+    -11916.1,
+    -1224.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "Map",
+    "idClient": 309,
+    "role": "entree-raid"
+   }
+  },
+  {
+   "zone": "vallee-de-strangleronce",
+   "categorie": "maitre-vol",
+   "nom": "Baie-du-Butin",
+   "x": 26.82,
+   "y": 77.0,
+   "description": null,
+   "monde": [
+    0,
+    -14444.3,
+    509.6
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 18,
+    "faction": "horde"
+   }
+  },
+  {
+   "zone": "vallee-de-strangleronce",
+   "categorie": "maitre-vol",
+   "nom": "Baie-du-Butin",
+   "x": 27.53,
+   "y": 77.67,
+   "description": null,
+   "monde": [
+    0,
+    -14473.0,
+    464.1
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 19,
+    "faction": "alliance"
+   }
+  },
+  {
+   "zone": "vallee-de-strangleronce",
+   "categorie": "maitre-vol",
+   "nom": "Grom'gol",
+   "x": 32.51,
+   "y": 29.28,
+   "description": null,
+   "monde": [
+    0,
+    -12414.2,
+    146.3
+   ],
+   "donnees": {
+    "source": "client",
+    "table": "TaxiNodes",
+    "idClient": 20,
+    "faction": "horde"
+   }
+  }
+ ]
+}

@@ -1,13 +1,14 @@
-// Importe les zones de WoW: Forever (cartes tirées du client) et les points de Classic issus de pfQuest.
-// Remplace la zone de démonstration. Idempotent : zones et catégories sont mises à jour. Quand le
+// Importe les zones de WoW: Forever (cartes tirées du client), les points de Classic issus de pfQuest
+// et ceux tirés des tables du client de Forever (nœuds de vol, entrées de donjons).
+// Remplace la zone de démonstration. Idempotent : zones et catégories sont mises à jour. Quand un
 // fichier de points change (points recalés, nouvelle extraction) ou avec --remplacer, les points
-// importés sont synchronisés avec lui sans changer d'identifiant (les liens ?poi= restent bons) :
+// importés sont synchronisés avec eux sans changer d'identifiant (les liens ?poi= restent bons) :
 // mis à jour sur place, ajoutés, ou supprimés s'ils ont disparu du fichier. Les points que la
 // communauté a modifiés ou référencés et ceux masqués par la modération ne sont jamais supprimés.
 //
 // Usage : npm run db:import-classic [-- --remplacer]
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../src/db";
@@ -21,6 +22,8 @@ type PointImporte = {
   y: number;
   // Position dans pfQuest (carte de Classic) quand le point a été recalé sur la carte de Forever.
   origine?: [number, number];
+  // Points du client : [carte, x, y] dans le monde (non importé).
+  monde?: [number, number, number];
   description: string | null;
   donnees: Record<string, unknown>;
 };
@@ -37,11 +40,15 @@ type Contenu = {
 
 const LARGEUR = 1002;
 const HAUTEUR = 668;
-const SOURCE = "pfquest";
+const SOURCES = ["pfquest", "client"];
+const FICHIER_PFQUEST = new URL("../data/classic/pois.json.gz", import.meta.url);
+const FICHIER_CLIENT = new URL("../data/forever/client.json", import.meta.url);
 
-// Identité d'un point dans pfQuest, gardée dans donnees.cleImport : sa position d'origine, pas celle
-// recalée, pour qu'un point reste le même d'une version du fichier à l'autre.
+// Identité d'un point, gardée dans donnees.cleImport pour qu'il reste le même d'une version des
+// fichiers à l'autre : sa ligne dans la table du client, ou sa position d'origine dans pfQuest
+// (pas celle recalée).
 function cle(p: PointImporte) {
+  if (p.donnees.source === "client") return ["client", p.donnees.table, p.donnees.idClient].join("|");
   const [x, y] = p.origine ?? [p.x, p.y];
   return [p.zone, p.categorie, p.donnees.uniteId ?? "", p.donnees.objetId ?? "", x.toFixed(1), y.toFixed(1)].join("|");
 }
@@ -127,10 +134,16 @@ async function main() {
 
   await supprimerDemo();
 
-  const contenu = gunzipSync(readFileSync(new URL("../data/classic/pois.json.gz", import.meta.url)));
-  // Version du contenu du fichier, gardée dans donnees.lot de chaque point importé.
-  const lot = createHash("sha256").update(contenu).digest("hex").slice(0, 12);
-  const importes = sql`${schema.pois.donnees}->>'source' = ${SOURCE}`;
+  const contenuPfquest = gunzipSync(readFileSync(FICHIER_PFQUEST));
+  const contenuClient = existsSync(FICHIER_CLIENT) ? readFileSync(FICHIER_CLIENT) : null;
+  // Version du contenu des fichiers, gardée dans donnees.lot de chaque point importé.
+  const empreinte = createHash("sha256").update(contenuPfquest);
+  if (contenuClient) empreinte.update(contenuClient);
+  const lot = empreinte.digest("hex").slice(0, 12);
+  const importes = sql`${schema.pois.donnees}->>'source' in (${sql.join(
+    SOURCES.map((s) => sql`${s}`),
+    sql`, `,
+  )})`;
   const autreLot = sql`${schema.pois.donnees}->>'lot' is distinct from ${lot}`;
   const [{ n: existants }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.pois).where(importes);
   const [{ n: perimes }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.pois).where(and(importes, autreLot));
@@ -140,7 +153,12 @@ async function main() {
   }
   if (perimes > 0) console.log(`${perimes} points importés d'une version précédente du fichier : synchronisation.`);
 
-  const { points } = JSON.parse(contenu.toString("utf8")) as { points: PointImporte[] };
+  const lire = (c: Buffer | null) => (c ? (JSON.parse(c.toString("utf8")) as { points: PointImporte[] }).points : []);
+  const pfquest = lire(contenuPfquest);
+  const client = lire(contenuClient);
+  // Un nœud de vol déjà représenté par son maître de vol de pfQuest (placé dessus) n'est pas importé deux fois.
+  const noeudsPris = new Set<unknown>(pfquest.map((p) => p.donnees.noeudVol).filter((n) => n !== undefined));
+  const points = [...pfquest, ...client.filter((p) => !(p.donnees.table === "TaxiNodes" && noeudsPris.has(p.donnees.idClient)))];
   const zones = Object.fromEntries((await db.select({ id: schema.zones.id, slug: schema.zones.slug }).from(schema.zones)).map((z) => [z.slug, z.id]));
   const categories = Object.fromEntries(
     (await db.select({ id: schema.categories.id, slug: schema.categories.slug }).from(schema.categories)).map((c) => [c.slug, c.id]),

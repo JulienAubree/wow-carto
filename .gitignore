@@ -48,3 +48,6 @@ __pycache__/
 /scripts/cartes/client/forever/
 /scripts/cartes/client/sortie/
 /scripts/cartes/client/*.csv
+
+# définitions de tables téléchargées par scripts/donnees/extraire_client.py (WoWDBDefs)
+/scripts/donnees/.dbd/
