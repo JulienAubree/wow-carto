@@ -1,6 +1,6 @@
 """Construit les tuiles de la vue « terrain » (minimap du jeu vue de dessus) pour Leaflet.
 
-Usage : python3 scripts/cartes/terrain.py <dossier minimap/ de client/extraire_minimap.py>
+Usage : python3 scripts/cartes/terrain.py <dossier de sortie de client/extraire_minimap.py>
 
 Chaque carte du monde (azeroth = Royaumes de l'Est, kalimdor) est une grille de 64 x 64 ADT de
 533,33 m de côté ; la minimap du jeu donne une image de 512 x 512 px par ADT. Les tuiles produites,
@@ -10,7 +10,7 @@ une seule tuile couvre toute la grille. src/lib/coords.ts fait le lien avec les 
 data/forever/terrain.json donne l'étendue des ADT présentes : [xMin, yMin, xMax, yMax].
 Il faut Python 3 avec Pillow.
 """
-import glob
+import csv
 import json
 import os
 import shutil
@@ -72,10 +72,14 @@ def main():
     for carte in CARTES:
         dossier = os.path.join(RACINE, "public", "cartes", "terrain", carte)
         shutil.rmtree(dossier, ignore_errors=True)
-        travaux = []
-        for blp in glob.glob(os.path.join(source, carte, "*.blp")):
-            x, y = map(int, os.path.basename(blp)[:-4].split("_"))
-            travaux.append((blp, dossier, x, y))
+        # tuiles.csv liste les tuiles de la carte au moment de l'extraction ; une image restée d'une
+        # extraction plus ancienne n'y figure pas.
+        with open(os.path.join(source, carte, "tuiles.csv"), newline="") as f:
+            travaux = [
+                (os.path.join(source, carte, f"{r['x']}_{r['y']}.blp"), dossier, int(r["x"]), int(r["y"]))
+                for r in csv.DictReader(f)
+                if r["present"] == "1"
+            ]
         # ADT présentes, pour que Leaflet ne demande pas de tuiles au-delà.
         etendues[carte] = [min(t[2] for t in travaux), min(t[3] for t in travaux), max(t[2] for t in travaux), max(t[3] for t in travaux)]
         with ProcessPoolExecutor() as pool:

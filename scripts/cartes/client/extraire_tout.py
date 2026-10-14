@@ -8,7 +8,8 @@ Usage :
   <uiMapID>.png                      carte composée (tuiles + tous les overlays révélés)
   zones.csv                          une ligne par UiMap
   uimapassignment_classic_era.csv    bornes monde de Classic Era 1.15.9.70003 (comparaison)
-  blp/<fdid>.blp                     textures frFR extraites (réutilisées si on relance)
+  blp/<clé de contenu>.blp           textures frFR extraites (réutilisées si on relance, tant que
+                                     le jeu n'a pas changé le fichier)
 
 Les tables DB2 viennent des CSV frFR wago du build 1.60.1.70338 (dossier forever/),
 dont les FileDataID correspondent au build local 1.60.1.70205.
@@ -161,40 +162,43 @@ class CascSource:
         self.casc = self.cr.Casc(wow, PRODUCT)
         self.cache = os.path.join(OUT, 'blp')
         os.makedirs(self.cache, exist_ok=True)
-        self.ekeys = {}
+        self.choix = {}
+        self.avertis = set()
+
+    def chemin(self, ckey):
+        # Le cache est indexé par la clé de contenu, pas par le FileDataID : après une mise à jour
+        # du jeu, ou en passant le client en français, un fichier qui a changé est relu.
+        return os.path.join(self.cache, ckey.hex() + '.blp')
 
     def prepare(self, fdids):
         errors = []
-        todo = [f for f in fdids if not os.path.exists(os.path.join(self.cache, '%d.blp' % f))]
-        if not todo:
-            return errors
-        print('lecture de root pour %d fichiers...' % len(todo), flush=True)
-        root = self.casc.load_root(todo)
-        ckeys = {ck for v in root.values() for _, _, ck in v}
+        print('lecture de root pour %d fichiers...' % len(fdids), flush=True)
+        root = self.casc.load_root(fdids)
         print('lecture de encoding...', flush=True)
-        enc = self.casc.load_encoding(ckeys)
-        for fd in todo:
+        enc = self.casc.load_encoding({ck for v in root.values() for _, _, ck in v})
+        for fd in fdids:
             ents = root.get(fd, [])
-            # priorité : entrée couvrant frFR, puis toute entrée présente localement
+            # priorité : entrée couvrant frFR, puis toute entrée déjà extraite ou présente localement
             ents = sorted(ents, key=lambda e: 0 if e[0] & FRFR else 1)
             for loc, flags, ck in ents:
                 ek = enc.get(ck)
-                if ek is not None and ek[:9] in self.casc.idx:
-                    self.ekeys[fd] = (ek, loc)
+                if os.path.exists(self.chemin(ck)) or (ek is not None and ek[:9] in self.casc.idx):
+                    self.choix[fd] = (ck, ek, loc)
                     break
             else:
                 errors.append('%d: aucune variante présente localement (%d entrées root)' % (fd, len(ents)))
         return errors
 
     def get(self, fdid):
-        p = os.path.join(self.cache, '%d.blp' % fdid)
+        if fdid not in self.choix:
+            raise KeyError('pas de variante locale')
+        ck, ek, loc = self.choix[fdid]
+        if not loc & FRFR and fdid not in self.avertis:
+            self.avertis.add(fdid)
+            print('  attention: %d sans variante frFR (locale %s)' % (fdid, hex(loc)))
+        p = self.chemin(ck)
         if os.path.exists(p):
             return open(p, 'rb').read()
-        if fdid not in self.ekeys:
-            raise KeyError('pas de variante locale')
-        ek, loc = self.ekeys[fdid]
-        if not loc & FRFR:
-            print('  attention: %d sans variante frFR (locale %s)' % (fdid, hex(loc)))
         data = self.casc.read_ekey(ek)
         with open(p, 'wb') as f:
             f.write(data)

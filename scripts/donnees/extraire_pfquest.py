@@ -65,16 +65,19 @@ def au_bord(x, y, marge=5):
 
 
 def coords_retenues(coords, unite):
-    """Une apparition = une seule zone : on retire les copies sur la carte voisine ou parente."""
-    coords = [(*recaler(ZONES[z], x, y), z) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
+    """Une apparition = une seule zone : on retire les copies sur la carte voisine ou parente.
+
+    Renvoie [(x, y, zone, origine)] : origine est la position sur la carte de Classic, avant recalage.
+    """
+    coords = [(*recaler(ZONES[z], x, y), z, (x, y)) for x, y, z in coords if z in ZONES and 0 <= x <= 100 and 0 <= y <= 100]
     # Recalée, une position peut sortir d'une carte de Forever plus petite (bord ouest des Carmines).
-    coords = [(x, y, z) for x, y, z in coords if 0 <= x <= 100 and 0 <= y <= 100]
-    zones = {z for _, _, z in coords}
+    coords = [c for c in coords if 0 <= c[0] <= 100 and 0 <= c[1] <= 100]
+    zones = {c[2] for c in coords}
     parents = {VILLES[z] for z in zones if z in VILLES}
     coords = [c for c in coords if c[2] not in parents]
-    if unite and len({z for _, _, z in coords}) > 1:
+    if unite and len({c[2] for c in coords}) > 1:
         # Projection sur une carte voisine : elle tombe au bord de cette carte-là.
-        loin_du_bord = {z for x, y, z in coords if not au_bord(x, y)}
+        loin_du_bord = {c[2] for c in coords if not au_bord(c[0], c[1])}
         coords = [c for c in coords if c[2] in loin_du_bord or not loin_du_bord]
     # Restent les cartes qui se chevauchent vraiment (Moulin-de-Tarren visible aussi sur Alterac),
     # comme dans le jeu.
@@ -174,17 +177,21 @@ def main():
     vus = set()
 
     def ajouter(categorie, source, ident, entree, nom, donnees, description=None):
-        for x, y, zone in coords_retenues(entree["coords"], source == "unite"):
+        for x, y, zone, origine in coords_retenues(entree["coords"], source == "unite"):
             slug = ZONES[zone]
             cle = (categorie, ident, slug, round(x, 1), round(y, 1))
             if cle in vus:
                 continue
             vus.add(cle)
-            points.append({
+            point = {
                 "zone": slug, "categorie": categorie, "nom": nom, "x": x, "y": y,
                 "description": description,
                 "donnees": {"source": "pfquest", f"{source}Id": abs(ident), **{k: v for k, v in donnees.items() if v not in (None, "")}},
-            })
+            }
+            if origine != (x, y):
+                # Position dans pfQuest : l'importeur en tire l'identité du point, stable d'un recalage à l'autre.
+                point["origine"] = list(origine)
+            points.append(point)
 
     def unite(ident):
         nom = noms_u.get(ident) or noms_u_en.get(ident)

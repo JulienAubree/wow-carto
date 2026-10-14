@@ -1,8 +1,9 @@
 // Importe les zones de WoW: Forever (cartes tirées du client) et les points de Classic issus de pfQuest.
-// Remplace la zone de démonstration. Idempotent : zones et catégories sont mises à jour,
-// les points importés ne sont ajoutés qu'une fois. Quand le fichier de points change (points
-// recalés, nouvelle extraction) ou avec --remplacer, les points importés jamais modifiés depuis
-// (version 1) sont supprimés puis réimportés.
+// Remplace la zone de démonstration. Idempotent : zones et catégories sont mises à jour. Quand le
+// fichier de points change (points recalés, nouvelle extraction) ou avec --remplacer, les points
+// importés sont synchronisés avec lui sans changer d'identifiant (les liens ?poi= restent bons) :
+// mis à jour sur place, ajoutés, ou supprimés s'ils ont disparu du fichier. Les points que la
+// communauté a modifiés ou référencés et ceux masqués par la modération ne sont jamais supprimés.
 //
 // Usage : npm run db:import-classic [-- --remplacer]
 import { createHash } from "node:crypto";
@@ -18,7 +19,19 @@ type PointImporte = {
   nom: string;
   x: number;
   y: number;
+  // Position dans pfQuest (carte de Classic) quand le point a été recalé sur la carte de Forever.
+  origine?: [number, number];
   description: string | null;
+  donnees: Record<string, unknown>;
+};
+
+type Contenu = {
+  zoneId: number;
+  categorieId: number;
+  nom: string;
+  description: string | null;
+  x: number;
+  y: number;
   donnees: Record<string, unknown>;
 };
 
@@ -26,10 +39,41 @@ const LARGEUR = 1002;
 const HAUTEUR = 668;
 const SOURCE = "pfquest";
 
-// Identité d'un point dans le fichier source, gardée dans donnees.cleImport : un point corrigé
-// par la communauté (déplacé, renommé) n'est pas réimporté en double par --remplacer.
+// Identité d'un point dans pfQuest, gardée dans donnees.cleImport : sa position d'origine, pas celle
+// recalée, pour qu'un point reste le même d'une version du fichier à l'autre.
 function cle(p: PointImporte) {
-  return [p.zone, p.categorie, p.donnees.uniteId ?? "", p.donnees.objetId ?? "", p.x.toFixed(1), p.y.toFixed(1)].join("|");
+  const [x, y] = p.origine ?? [p.x, p.y];
+  return [p.zone, p.categorie, p.donnees.uniteId ?? "", p.donnees.objetId ?? "", x.toFixed(1), y.toFixed(1)].join("|");
+}
+
+// Comparaison de deux valeurs JSON indépendante de l'ordre des clés (jsonb les réordonne).
+function canonique(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonique).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .filter((k) => o[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonique(o[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+function sansLot(donnees: Record<string, unknown>) {
+  return canonique({ ...donnees, lot: undefined });
+}
+
+function memeContenu(a: Contenu, b: Contenu) {
+  return (
+    a.zoneId === b.zoneId &&
+    a.categorieId === b.categorieId &&
+    a.nom === b.nom &&
+    (a.description ?? null) === (b.description ?? null) &&
+    a.x === b.x &&
+    a.y === b.y &&
+    sansLot(a.donnees) === sansLot(b.donnees)
+  );
 }
 
 async function supprimerDemo() {
@@ -91,54 +135,92 @@ async function main() {
   const [{ n: existants }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.pois).where(importes);
   const [{ n: perimes }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.pois).where(and(importes, autreLot));
   if (existants > 0 && perimes === 0 && !remplacer) {
-    console.log(`${existants} points importés déjà à jour ; relancer avec --remplacer pour les réimporter.`);
+    console.log(`${existants} points importés déjà à jour ; relancer avec --remplacer pour les resynchroniser.`);
     return;
   }
-  if (perimes > 0) console.log(`${perimes} points importés d'une version précédente du fichier : remplacement.`);
+  if (perimes > 0) console.log(`${perimes} points importés d'une version précédente du fichier : synchronisation.`);
 
   const { points } = JSON.parse(contenu.toString("utf8")) as { points: PointImporte[] };
   const zones = Object.fromEntries((await db.select({ id: schema.zones.id, slug: schema.zones.slug }).from(schema.zones)).map((z) => [z.slug, z.id]));
   const categories = Object.fromEntries(
     (await db.select({ id: schema.categories.id, slug: schema.categories.slug }).from(schema.categories)).map((c) => [c.slug, c.id]),
   );
+  const fichier = new Map<string, Contenu>();
+  for (const p of points) {
+    const zoneId = zones[p.zone];
+    const categorieId = categories[p.categorie];
+    const cleImport = cle(p);
+    if (!zoneId || !categorieId || fichier.has(cleImport)) continue;
+    fichier.set(cleImport, { zoneId, categorieId, nom: p.nom, description: p.description ?? null, x: p.x, y: p.y, donnees: { ...p.donnees, cleImport, lot } });
+  }
 
   await db.transaction(async (tx) => {
-    if (remplacer || perimes > 0) {
-      // Les points modifiés depuis l'import (version > 1) ou référencés par la communauté sont gardés.
-      const supprimes = await tx
-        .delete(schema.pois)
-        .where(
-          and(
-            importes,
-            eq(schema.pois.version, 1),
-            sql`not exists (select 1 from ${schema.poiRevisions} where ${schema.poiRevisions.poiId} = ${schema.pois.id})`,
-            sql`not exists (select 1 from ${schema.contributions} where ${schema.contributions.poiId} = ${schema.pois.id})`,
-            sql`not exists (select 1 from ${schema.signalements} where ${schema.signalements.poiId} = ${schema.pois.id})`,
-            sql`not exists (select 1 from ${schema.confirmations} where ${schema.confirmations.poiId} = ${schema.pois.id})`,
-          ),
-        )
-        .returning({ id: schema.pois.id });
-      console.log(`${supprimes.length} points importés supprimés avant réimport.`);
+    // Modifié depuis l'import (version > 1) ou référencé par la communauté : le point n'est plus touché.
+    // Noms qualifiés à la main : dans la liste du select, drizzle écrit "id" sans le nom de la table,
+    // ce qui désignerait l'id de la table de la sous-requête.
+    const touche = sql<boolean>`(pois.version > 1
+      or exists (select 1 from poi_revisions r where r.poi_id = pois.id)
+      or exists (select 1 from contributions c where c.poi_id = pois.id)
+      or exists (select 1 from signalements s where s.poi_id = pois.id)
+      or exists (select 1 from confirmations f where f.poi_id = pois.id))`;
+    const lignes = await tx
+      .select({
+        id: schema.pois.id,
+        zoneId: schema.pois.zoneId,
+        categorieId: schema.pois.categorieId,
+        nom: schema.pois.nom,
+        description: schema.pois.description,
+        x: schema.pois.x,
+        y: schema.pois.y,
+        donnees: schema.pois.donnees,
+        statut: schema.pois.statut,
+        touche,
+      })
+      .from(schema.pois)
+      .where(importes)
+      .orderBy(sql`${touche} desc`, schema.pois.id);
+
+    // Chaque point du fichier correspond à au plus un point en base, de préférence un point touché.
+    const pris = new Set<string>();
+    const aJour: (Contenu & { id: number })[] = [];
+    const aSupprimer: number[] = [];
+    let gardes = 0;
+    for (const l of lignes) {
+      const c = String(l.donnees.cleImport ?? "");
+      const nouveau = pris.has(c) ? undefined : fichier.get(c);
+      if (nouveau) pris.add(c);
+      if (l.touche) gardes++;
+      else if (nouveau) {
+        if (!memeContenu(l, nouveau)) aJour.push({ id: l.id, ...nouveau });
+      } else if (l.statut === "publie") aSupprimer.push(l.id);
+      else gardes++; // masqué par la modération : on garde la décision
     }
-    const gardes = new Set(
-      (await tx.select({ cle: sql<string>`${schema.pois.donnees}->>'cleImport'` }).from(schema.pois).where(importes)).map((p) => p.cle),
-    );
-    const lignes = points.flatMap((p) => {
-      const zoneId = zones[p.zone];
-      const categorieId = categories[p.categorie];
-      const cleImport = cle(p);
-      if (!zoneId || !categorieId || gardes.has(cleImport)) return [];
-      return [{ zoneId, categorieId, nom: p.nom, description: p.description, x: p.x, y: p.y, donnees: { ...p.donnees, cleImport, lot } }];
-    });
-    for (let i = 0; i < lignes.length; i += 1000) {
-      await tx.insert(schema.pois).values(lignes.slice(i, i + 1000));
+    const aAjouter = [...fichier].filter(([c]) => !pris.has(c)).map(([, v]) => v);
+
+    for (let i = 0; i < aSupprimer.length; i += 1000) {
+      await tx.delete(schema.pois).where(inArray(schema.pois.id, aSupprimer.slice(i, i + 1000)));
     }
-    // Les points gardés (corrigés par la communauté) passent au lot courant : pas de remplacement au prochain import.
+    for (let i = 0; i < aJour.length; i += 1000) {
+      const paquet = JSON.stringify(aJour.slice(i, i + 1000));
+      await tx.execute(sql`
+        update ${schema.pois} set
+          zone_id = t."zoneId", categorie_id = t."categorieId", nom = t.nom, description = t.description,
+          x = t.x, y = t.y, donnees = t.donnees, updated_at = now()
+        from jsonb_to_recordset(${paquet}::jsonb) as t(id int, "zoneId" int, "categorieId" int, nom text, description text, x double precision, y double precision, donnees jsonb)
+        where ${schema.pois.id} = t.id`);
+    }
+    for (let i = 0; i < aAjouter.length; i += 1000) {
+      await tx.insert(schema.pois).values(aAjouter.slice(i, i + 1000));
+    }
+    // Tous les points importés passent au lot courant : rien à refaire au prochain déploiement.
     await tx
       .update(schema.pois)
       .set({ donnees: sql`${schema.pois.donnees} || jsonb_build_object('lot', ${lot}::text)` })
       .where(and(importes, autreLot));
-    console.log(`${lignes.length} points importés (sur ${points.length} dans le fichier, ${gardes.size} gardés).`);
+    console.log(
+      `${points.length} points dans le fichier : ${aAjouter.length} ajoutés, ${aJour.length} mis à jour, ` +
+        `${aSupprimer.length} supprimés (absents du fichier), ${gardes} gardés tels quels (modifiés par la communauté ou masqués).`,
+    );
   });
 }
 

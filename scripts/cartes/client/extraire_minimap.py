@@ -8,7 +8,8 @@ Chaque carte du monde est une grille de 64 x 64 tuiles (une par ADT, 533,33 m de
 de la carte donne, dans son bloc MAID, le FileDataID de la texture de minimap de chaque tuile.
 
 Écrit <sortie>/<carte>/<x>_<y>.blp (x : colonne, d'ouest en est ; y : ligne, du nord au sud)
-et <sortie>/<carte>/tuiles.csv. Les fichiers déjà extraits sont réutilisés si on relance.
+et <sortie>/<carte>/tuiles.csv, la liste des tuiles de la carte (present = 1 quand l'image a été
+extraite, ckey = sa clé de contenu). Si on relance, une tuile n'est relue que si le jeu l'a changée.
 """
 import csv, importlib.util, os, struct, sys, time
 
@@ -51,8 +52,8 @@ class Lecteur:
         self.cr = load_module('casc_reader')
         self.casc = self.cr.Casc(wow, PRODUCT)
 
-    def lire(self, fdids):
-        """{fdid: contenu} pour les fichiers présents localement (première variante disponible)."""
+    def variantes(self, fdids):
+        """{fdid: (ckey, ekey)} de la première variante présente localement, et les erreurs."""
         root = self.casc.load_root(fdids)
         enc = self.casc.load_encoding({ck for v in root.values() for _, _, ck in v})
         res, erreurs = {}, []
@@ -60,14 +61,22 @@ class Lecteur:
             for _, _, ck in root.get(fd, []):
                 ek = enc.get(ck)
                 if ek is not None and ek[:9] in self.casc.idx:
-                    try:
-                        res[fd] = self.casc.read_ekey(ek)
-                    except Exception as e:  # bloc chiffré, archive absente…
-                        erreurs.append('%d: %s' % (fd, e))
+                    res[fd] = (ck, ek)
                     break
             else:
                 erreurs.append('%d: absent du stockage local' % fd)
         return res, erreurs
+
+    def lire(self, ekey):
+        return self.casc.read_ekey(ekey)
+
+
+def deja_extraites(chemin_csv):
+    """{(x, y): ckey} des tuiles extraites lors d'un passage précédent."""
+    if not os.path.exists(chemin_csv):
+        return {}
+    with open(chemin_csv, newline='') as f:
+        return {(int(r['x']), int(r['y'])): r['ckey'] for r in csv.DictReader(f) if r.get('present') == '1' and r.get('ckey')}
 
 
 def main():
@@ -79,28 +88,38 @@ def main():
         cartes = {a.split('=')[0]: int(a.split('=')[1]) for a in sys.argv[3:]}
     t0 = time.time()
     lecteur = Lecteur(wow)
-    wdts, erreurs = lecteur.lire(list(cartes.values()))
+    variantes, erreurs = lecteur.variantes(list(cartes.values()))
     for e in erreurs:
         print('WDT', e)
     for nom, fdid in cartes.items():
-        if fdid not in wdts:
+        if fdid not in variantes:
             continue
         dossier = os.path.join(sortie, nom)
         os.makedirs(dossier, exist_ok=True)
-        tuiles = tuiles_minimap(wdts[fdid])
-        a_lire = [fd for x, y, fd in tuiles if not os.path.exists(os.path.join(dossier, '%d_%d.blp' % (x, y)))]
-        print('%s : %d tuiles dans le WDT, %d à extraire' % (nom, len(tuiles), len(a_lire)), flush=True)
-        contenus, erreurs = lecteur.lire(a_lire) if a_lire else ({}, [])
+        tuiles = tuiles_minimap(lecteur.lire(variantes[fdid][1]))
+        chemin_csv = os.path.join(dossier, 'tuiles.csv')
+        deja = deja_extraites(chemin_csv)
+        presentes, erreurs = lecteur.variantes([fd for _, _, fd in tuiles])
+        lignes, lues = [], 0
         for x, y, fd in tuiles:
-            if fd in contenus:
-                with open(os.path.join(dossier, '%d_%d.blp' % (x, y)), 'wb') as f:
-                    f.write(contenus[fd])
-        with open(os.path.join(dossier, 'tuiles.csv'), 'w', newline='') as f:
+            chemin = os.path.join(dossier, '%d_%d.blp' % (x, y))
+            ckey = presentes[fd][0].hex() if fd in presentes else ''
+            if ckey and (deja.get((x, y)) != ckey or not os.path.exists(chemin)):
+                try:
+                    contenu = lecteur.lire(presentes[fd][1])
+                except Exception as e:  # bloc chiffré, archive absente…
+                    erreurs.append('%d: %s' % (fd, e))
+                    ckey = ''
+                else:
+                    with open(chemin, 'wb') as f:
+                        f.write(contenu)
+                    lues += 1
+            lignes.append([x, y, fd, ckey, int(bool(ckey))])
+        with open(chemin_csv, 'w', newline='') as f:
             w = csv.writer(f)
-            w.writerow(['x', 'y', 'fdid', 'present'])
-            for x, y, fd in tuiles:
-                w.writerow([x, y, fd, int(os.path.exists(os.path.join(dossier, '%d_%d.blp' % (x, y))))])
-        print('%s : %d erreurs' % (nom, len(erreurs)))
+            w.writerow(['x', 'y', 'fdid', 'ckey', 'present'])
+            w.writerows(lignes)
+        print('%s : %d tuiles dans le WDT, %d extraites, %d erreurs' % (nom, len(tuiles), lues, len(erreurs)), flush=True)
         for e in erreurs[:20]:
             print('  - ' + e)
     print('durée : %.0f s' % (time.time() - t0))
