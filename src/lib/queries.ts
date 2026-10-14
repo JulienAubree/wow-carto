@@ -96,7 +96,7 @@ function normaliser(texte: string) {
     .toLowerCase();
 }
 
-// Recherche par nom, regroupée par zone : « Feuillargent » donne une ligne par zone avec le nombre d'emplacements.
+// Recherche par nom, regroupée par zone : « Gadgetzan » donne une ligne par zone avec le nombre d'emplacements.
 export async function rechercher(texte: string): Promise<ResultatRecherche[]> {
   const motif = `%${normaliser(texte).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   return db

@@ -7,18 +7,16 @@ Usage :
 Écrit dans sortie/ (à côté de ce script) :
   <uiMapID>.png                      carte composée (tuiles + tous les overlays révélés)
   zones.csv                          une ligne par UiMap
-  uimapassignment_classic_era.csv    bornes monde de Classic Era 1.15.9.70003 (comparaison)
   blp/<clé de contenu>.blp           textures frFR extraites (réutilisées si on relance, tant que
                                      le jeu n'a pas changé le fichier)
 
 Les tables DB2 viennent des CSV frFR wago du build 1.60.1.70338 (dossier forever/),
 dont les FileDataID correspondent au build local 1.60.1.70205.
 """
-import csv, glob, importlib.util, os, shutil, struct, sys, time, zlib
+import csv, glob, importlib.util, os, struct, sys, time, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CSV_DIR = os.path.join(HERE, 'forever')
-CLASSIC_ASSIGN = os.path.join(HERE, 'UiMapAssignment_classic_era_frFR.csv')
 OUT = os.path.join(HERE, 'sortie')
 PRODUCT = 'wow_classic_beta'
 FRFR = 0x10
@@ -334,10 +332,6 @@ def main():
         wr = csv.DictWriter(f, fieldnames=list(out_rows[0].keys()))
         wr.writeheader()
         wr.writerows(out_rows)
-    if os.path.exists(CLASSIC_ASSIGN):
-        shutil.copyfile(CLASSIC_ASSIGN, os.path.join(OUT, 'uimapassignment_classic_era.csv'))
-    else:
-        errors.append('CSV Classic Era absent: ' + CLASSIC_ASSIGN)
 
     print('\n=== Résumé ===')
     print('UiMap traitées : %d, PNG écrits : %d, sans PNG : %d' % (len(plan), done, len(plan) - done))

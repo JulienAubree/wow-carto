@@ -4,10 +4,9 @@ Usage : python3 scripts/cartes/forever.py <dossier sortie/ de client/extraire_to
 
 Écrit :
   public/cartes/forever/<slug>.webp   carte de la zone, 1002 x 668 px, sous-zones révélées
-  data/forever/cartes.json            bornes de chaque carte dans le monde, dans Forever et dans
-                                      Classic Era : scripts/donnees/extraire_pfquest.py s'en sert
-                                      pour recaler les points de Classic sur les cartes de Forever,
-                                      et le site pour placer la zone sur la vue terrain.
+  data/forever/cartes.json            bornes de chaque carte dans le monde : le site s'en sert pour
+                                      placer la zone sur la vue terrain, scripts/donnees/extraire_client.py
+                                      pour placer les points du client sur la carte de leur zone.
 Il faut Python 3 avec Pillow.
 """
 import csv
@@ -54,20 +53,8 @@ def bornes(ligne, prefixe):
     return [round(float(ligne[f"{prefixe}{c}"]), 4) for c in ("min_x", "min_y", "max_x", "max_y")]
 
 
-def bornes_classic(chemin):
-    """UiMapID -> bornes de la carte entière (UiMin 0,0 et UiMax 1,1) dans Classic Era."""
-    res = {}
-    with open(chemin, encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            if [float(r[k]) for k in ("UiMin_0", "UiMin_1", "UiMax_0", "UiMax_1")] != [0, 0, 1, 1]:
-                continue
-            res.setdefault(int(r["UiMapID"]), [round(float(r[f"Region_{i}"]), 4) for i in (0, 1, 3, 4)])
-    return res
-
-
 def main():
     sortie = sys.argv[1]
-    classic = bornes_classic(os.path.join(sortie, "uimapassignment_classic_era.csv"))
     dossier = os.path.join(RACINE, "public", "cartes", "forever")
     os.makedirs(dossier, exist_ok=True)
     cartes = {}
@@ -85,15 +72,12 @@ def main():
             "uiMap": ui_map,
             "nomUiMap": r["nom"].replace("’", "'"),
             "forever": bornes(r, "region_"),
-            "classic": classic.get(ui_map),
             "terrain": TERRAIN.get(r["mapID"]),
         }
     with open(os.path.join(RACINE, "data", "forever", "cartes.json"), "w", encoding="utf-8") as f:
         lignes = [f"  {json.dumps(s)}: {json.dumps(c, ensure_ascii=False)}" for s, c in cartes.items()]
         f.write('{\n "client": "WoW: Forever 1.60.1 frFR",\n "cartes": {\n' + ",\n".join(lignes) + "\n }\n}\n")
-    changees = [s for s, c in cartes.items() if c["classic"] and c["classic"] != c["forever"]]
-    nouvelles = [s for s, c in cartes.items() if not c["classic"]]
-    print(f"{len(cartes)} cartes ; bornes changées depuis Classic : {', '.join(changees)} ; nouvelles : {', '.join(nouvelles)}")
+    print(f"{len(cartes)} cartes")
 
 
 if __name__ == "__main__":

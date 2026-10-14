@@ -37,12 +37,6 @@ const MASQUEES_PAR_DEFAUT = new Set(["minerai", "herbe", "peche"]);
 const FACTIONS: Record<string, string> = { alliance: "Alliance", horde: "Horde", neutre: "Neutre" };
 
 const ROLES: Record<string, string> = {
-  banker: "Banquier",
-  auctioneer: "Commissaire-priseur",
-  stablemaster: "Maître des écuries",
-  battlemaster: "Maître de guerre",
-  spirithealer: "Gardien des âmes",
-  repair: "Réparations",
   "entree-donjon": "Entrée de donjon",
   "entree-raid": "Entrée de raid",
 };
@@ -51,7 +45,7 @@ function echapper(texte: string) {
   return texte.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-// Comparaison sans accents ni casse : « feuillargent » trouve « Feuillargent ».
+// Comparaison sans accents ni casse : « eternite » trouve « Sommet d’Éternité ».
 function normaliser(texte: string) {
   return texte
     .normalize("NFD")
@@ -73,19 +67,13 @@ function fiche(p: PoiCarte, cat: CategorieCarte) {
   const d = p.donnees;
   const details = [
     (d.role && ROLES[d.role]) || cat.nom,
-    d.niveau ? `niveau ${d.niveau}${d.elite ? " élite" : ""}` : null,
     d.faction ? FACTIONS[d.faction] : null,
-    d.metier ? `compétence ${d.metier}` : null,
   ].filter(Boolean);
   return (
     `<strong>${echapper(p.nom)}</strong><br><em>${echapper(details.join(" · "))}</em>` +
     (p.description ? `<p>${echapper(p.description)}</p>` : "") +
     `<p><code>/way ${formatCoords(p.x, p.y).replace(",", "")}</code></p>` +
-    (d.source === "client" || d.position === "forever"
-      ? `<small>Position tirée des fichiers du jeu (WoW: Forever).</small>`
-      : d.source === "pfquest"
-        ? `<small>Position de Classic 1.12 (pfQuest), à confirmer dans Forever.</small>`
-        : "")
+    (d.source === "client" ? `<small>Position tirée des fichiers du jeu (WoW: Forever).</small>` : "")
   );
 }
 
