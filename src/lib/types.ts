@@ -14,7 +14,7 @@ export type ZoneCarte = {
   monde: MondeZone | null;
 };
 
-// Nom d'une zone voisine affiché sur la vue terrain, à la frontière avec la zone affichée.
+// Nom d'une zone voisine affiché sur la vue terrain, au bord de la carte du côté de cette zone.
 export type EtiquetteZone = {
   slug: string;
   nom: string;

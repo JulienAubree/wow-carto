@@ -45,11 +45,19 @@
 .ancres ul {
   display: flex;
   gap: var(--space-1);
+  /* Place pour le contour de focus, que le défilement horizontal rognerait (aux bouts de la rangée aussi). */
+  padding: 4px;
+  margin: -4px;
+  scroll-padding-inline: 4px;
   list-style: none;
   overflow-x: auto;
   scrollbar-width: none;
   /* Fondu à droite : la rangée continue hors de l'écran. */
   mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+
+.ancres ul:focus-within {
+  mask-image: none;
 }
 
 .ancres a {
@@ -84,7 +92,6 @@
   gap: var(--space-3);
   align-content: start;
   padding: var(--space-4);
-  scroll-margin-top: calc(var(--header-h) + 8px);
 }
 
 .continent h2 {
@@ -112,15 +119,22 @@
   text-transform: uppercase;
 }
 
+/* Deux colonnes dès que la carte du continent est assez large (au-delà de 1 300 px environ) : un nom long peut alors
+   passer sur deux lignes. */
 .groupe ul {
   list-style: none;
-  columns: 2 200px;
+  columns: 2 230px;
   column-gap: var(--space-4);
   font-size: 0.9375rem;
 }
 
+.autres .groupe ul {
+  columns: 1;
+}
+
 .groupe li {
   break-inside: avoid;
+  padding-block: 1px;
 }
 
 .ligneZone {
@@ -129,7 +143,7 @@
   justify-content: space-between;
   gap: var(--space-2);
   min-height: 36px;
-  padding: 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
   margin: 0 calc(-1 * var(--space-2));
   border-radius: var(--radius-sm);
   text-decoration: none;
@@ -168,12 +182,10 @@
   border-radius: var(--radius-lg);
 }
 
+/* Troisième colonne étroite (listes courtes) : les deux continents ont la place de leurs deux colonnes. */
 @media (min-width: 1100px) {
   .continents {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, 0.6fr);
-  }
-  .autres .groupe ul {
-    columns: 1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 260px;
   }
 }
 
@@ -198,19 +210,20 @@
     padding: var(--space-2) var(--space-4);
     background: var(--c-bg);
   }
-  .continent {
-    scroll-margin-top: calc(var(--header-h) + 60px);
-  }
   .continent img {
-    max-height: 120px;
+    max-height: 96px;
   }
   .groupe ul {
     columns: 1;
   }
 }
 
-/* 40 px plutôt que 44 : la ligne occupe toute la largeur, et l'accueil reste moins long sur téléphone. */
+/* 40 px plutôt que 44 : la ligne occupe toute la largeur, et l'accueil reste moins long sur téléphone. Les lignes se
+   touchent : leur hauteur suffit à les séparer au doigt. */
 @media (pointer: coarse) {
+  .groupe li {
+    padding-block: 0;
+  }
   .ligneZone {
     min-height: 40px;
   }

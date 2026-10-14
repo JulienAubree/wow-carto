@@ -135,50 +135,38 @@
   font-variant-numeric: tabular-nums;
 }
 
-.reste summary {
+.plusDeZones {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   min-height: 32px;
+  margin-left: calc(28px + var(--space-3));
   padding: 0 var(--space-3);
+  border: 0;
   border-radius: var(--radius-pill);
+  background: none;
   color: var(--c-accent);
   font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
-  list-style: none;
 }
 
-.reste summary::-webkit-details-marker {
-  display: none;
+.plusDeZones:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.reste details[open] {
-  flex-basis: 100%;
+/* Sur mobile, au-delà des six premières, les zones attendent le bouton « +N zones ». Sur ordinateur, tout est
+   affiché. */
+@media (max-width: 720px) {
+  .zonesGroupe:not([data-ouvert]) > .enPlus {
+    display: none;
+  }
 }
 
-.reste details[open] summary {
-  display: none;
-}
-
-/* Sur ordinateur, toutes les zones restent visibles (quand le navigateur sait ouvrir un <details> en CSS). */
-@supports selector(::details-content) {
-  @media (min-width: 721px) {
-    .reste {
-      display: contents;
-    }
-    .reste details {
-      display: contents;
-    }
-    .reste details::details-content {
-      display: contents;
-      content-visibility: visible;
-    }
-    .reste summary {
-      display: none;
-    }
-    .reste .zonesGroupe {
-      display: contents;
-    }
+@media (min-width: 721px) {
+  .plusDeZones {
+    display: none;
   }
 }
 
@@ -206,7 +194,7 @@
 
 @media (pointer: coarse) {
   .lienZone,
-  .reste summary {
+  .plusDeZones {
     min-height: 44px;
   }
 }

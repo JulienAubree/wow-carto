@@ -2,6 +2,7 @@ import { asc, eq, and, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { bornesZone, mondeZone } from "./monde";
 import { formatNiveaux, normaliser } from "./texte";
+import { VOISINES } from "./zones";
 import type { Bornes } from "./coords";
 import type { CategorieCarte, DonneesPoi, EtiquetteZone, PoiCarte, ResultatRecherche, ZoneCarte } from "./types";
 
@@ -20,12 +21,20 @@ export async function listerZones() {
     .orderBy(asc(schema.continents.ordre), sql`${schema.zones.niveauMin} asc nulls last`, asc(schema.zones.nom));
 }
 
-// Nombre de points publiés par zone (slug), pour signaler les zones encore à cartographier.
-export async function compterPointsParZone() {
+// Nombre de points publiés par zone (slug), hors maîtres de vol : ceux-là sont relevés dans le client du jeu
+// pour toutes les zones, une nouvelle zone qui n'a qu'eux reste à cartographier.
+export async function compterPointsCartographies() {
   const lignes = await db
     .select({ slug: schema.zones.slug, nombre: sql<number>`count(${schema.pois.id})::int` })
     .from(schema.zones)
-    .leftJoin(schema.pois, and(eq(schema.pois.zoneId, schema.zones.id), eq(schema.pois.statut, "publie")))
+    .leftJoin(
+      schema.pois,
+      and(
+        eq(schema.pois.zoneId, schema.zones.id),
+        eq(schema.pois.statut, "publie"),
+        sql`${schema.pois.categorieId} not in (select ${schema.categories.id} from ${schema.categories} where ${schema.categories.slug} = 'maitre-vol')`,
+      ),
+    )
     .groupBy(schema.zones.slug);
   return new Map(lignes.map((l) => [l.slug, l.nombre]));
 }
@@ -111,43 +120,40 @@ export async function chargerZone(
   };
 }
 
-// Rectangle [xMin, yMin, xMax, yMax] agrandi (r > 0) ou rentré (r < 0) de r fois sa taille de chaque côté.
+// Rectangle [xMin, yMin, xMax, yMax] agrandi de r fois sa taille de chaque côté.
 function agrandir(b: Bornes, r: number): Bornes {
   const dx = (b[2] - b[0]) * r;
   const dy = (b[3] - b[1]) * r;
   return [b[0] - dx, b[1] - dy, b[2] + dx, b[3] + dy];
 }
 
-const borner = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+const surface = (b: Bornes) => (b[2] - b[0]) * (b[3] - b[1]);
 const dedans = (x: number, y: number, b: Bornes) => x > b[0] && x < b[2] && y > b[1] && y < b[3];
 
-// Noms des zones voisines sur la vue terrain : celles dont le rectangle croise celui de la zone (agrandi de 10 %),
-// posés à la frontière, au point du voisin le plus proche du centre de la zone.
+// Noms des zones voisines (table VOISINES) sur la vue terrain. Une petite zone entourée par la zone affichée
+// (une ville) garde sa place réelle. Les autres sont posées juste hors du cadre de la zone, dans la direction
+// du voisin : la carte les ramène au bord du champ visible, avec une flèche.
 export async function etiquettesVoisines(slug: string): Promise<EtiquetteZone[]> {
   const terrain = mondeZone(slug)?.terrain;
   const courante = bornesZone(slug);
-  if (!terrain || !courante) return [];
-  const champ = agrandir(courante, 0.1);
-  const interieur = agrandir(courante, -0.06);
+  const voisines = VOISINES.get(slug);
+  if (!terrain || !courante || !voisines) return [];
+  const cadre = agrandir(courante, 0.04);
   const cx = (courante[0] + courante[2]) / 2;
   const cy = (courante[1] + courante[3]) / 2;
   return (await listerZones()).flatMap((z) => {
     const b = bornesZone(z.slug);
-    if (z.slug === slug || !b || mondeZone(z.slug)?.terrain !== terrain) return [];
-    if (b[0] > champ[2] || b[2] < champ[0] || b[1] > champ[3] || b[3] < champ[1]) return [];
-    const r = agrandir(b, -0.06);
-    let x = borner(cx, r[0], r[2]);
-    let y = borner(cy, r[1], r[3]);
-    // Voisin qui recouvre le centre de la zone (une ville dans sa zone, une très grande zone) : l'étiquette va
-    // au bord de la zone, dans la direction du centre du voisin.
-    if (dedans(x, y, interieur)) {
-      const dx = (b[0] + b[2]) / 2 - cx;
-      const dy = (b[1] + b[3]) / 2 - cy;
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return [];
+    if (!voisines.includes(z.slug) || !b || mondeZone(z.slug)?.terrain !== terrain) return [];
+    let x = (b[0] + b[2]) / 2;
+    let y = (b[1] + b[3]) / 2;
+    if (!dedans(x, y, courante) || surface(b) > 0.3 * surface(courante)) {
+      const dx = x - cx;
+      const dy = y - cy;
       const t = Math.min(
-        dx > 0 ? (interieur[2] - cx) / dx : dx < 0 ? (interieur[0] - cx) / dx : Infinity,
-        dy > 0 ? (interieur[3] - cy) / dy : dy < 0 ? (interieur[1] - cy) / dy : Infinity,
+        dx > 0 ? (cadre[2] - cx) / dx : dx < 0 ? (cadre[0] - cx) / dx : Infinity,
+        dy > 0 ? (cadre[3] - cy) / dy : dy < 0 ? (cadre[1] - cy) / dy : Infinity,
       );
+      if (!Number.isFinite(t)) return [];
       x = cx + dx * t;
       y = cy + dy * t;
     }

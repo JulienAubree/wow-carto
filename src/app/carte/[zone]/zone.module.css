@@ -85,12 +85,15 @@
   .retour {
     display: grid;
   }
+  /* Nom entier sur deux lignes au plus, plutôt que coupé par une ellipse. */
   .barreZone h1 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     min-width: 0;
-    font-size: var(--fs-lg);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: clamp(1rem, 4.6vw, var(--fs-lg));
+    line-height: 1.1;
   }
   .barreZone > span {
     flex: none;

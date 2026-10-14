@@ -185,12 +185,15 @@
   margin: 0;
 }
 
+/* Deux lignes au plus : « Banques et hôtels des ventes » reste lisible en entier. */
 .nomCategorie {
   flex: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .compteur {
@@ -233,7 +236,13 @@
 
 .voisines a:hover {
   background: var(--c-surface-2);
+}
+
+/* Seul le nom est souligné, pas la pilule des niveaux (comme sur l'accueil). */
+.voisines a:hover > span:first-child,
+.voisines a:focus-visible > span:first-child {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Carte */
@@ -301,6 +310,30 @@
   color: var(--c-text);
 }
 
+/* La barre arrondie rogne ce qui dépasse : le contour de focus est tracé à l'intérieur du bouton. */
+.zoneCarte .carte :global(.leaflet-bar) a:focus-visible,
+.zoneCarte .carte :global(.leaflet-bar) button:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: -4px;
+}
+
+/* Focus sur la carte elle-même (flèches, + et −) : le cadre, qui rogne la carte, porte le contour. */
+.zoneCarte .carte:focus-visible {
+  outline: none;
+}
+
+/* Liseré de la couleur du fond à l'intérieur : l'anneau se détache aussi sur l'imagerie de même teinte que lui. */
+.zoneCarte:has(> .carte:focus-visible)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1002;
+  border: 3px solid var(--c-focus);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--c-surface-1);
+  pointer-events: none;
+}
+
 .zoneCarte .carte :global(.leaflet-bar) a:global(.leaflet-disabled) {
   background: transparent;
   color: var(--c-text-muted);
@@ -334,10 +367,18 @@
   border-radius: var(--radius-lg);
 }
 
+/* 4 px de marge intérieure sur les côtés : une fiche qui défile ne rogne pas le contour de focus de ses boutons. */
 .zoneCarte .carte :global(.leaflet-popup-content) {
-  margin: var(--space-3) var(--space-4) var(--space-4);
+  margin: var(--space-3) calc(var(--space-4) - 4px) var(--space-4);
+  padding-inline: 4px;
+  scroll-padding-block: var(--space-2);
   font-size: var(--fs-sm);
   line-height: 1.45;
+}
+
+/* Fiche qui défile : fondu en bas tant qu'il reste du contenu plus bas. */
+.zoneCarte .carte :global(.leaflet-popup-content)[data-suite] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
 
 .zoneCarte .carte :global(.leaflet-popup-content):focus {
@@ -401,7 +442,7 @@
 }
 
 .zoneCarte .carte :global(.leaflet-popup-content) .sousTitre {
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
   color: var(--c-text-muted);
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -410,10 +451,31 @@
 }
 
 .quetes {
-  max-height: 168px;
-  overflow-y: auto;
   margin-top: var(--space-1);
   padding-left: 18px;
+}
+
+/* Longue liste : huit lignes et demie visibles, fondu en bas ; la marge basse laisse la dernière ligne sortir du fondu. */
+.quetesLongues {
+  max-height: 172px;
+  max-height: 8.5lh;
+  overflow-y: auto;
+  padding-bottom: 1lh;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1lh), transparent);
+}
+
+/* Le masque rognerait le contour : il est retiré tant que la liste a le focus. */
+.quetesLongues:focus-visible {
+  mask-image: none;
+  outline-offset: -2px;
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) .descriptionFiche {
+  margin-top: var(--space-3);
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) .position {
+  margin-top: var(--space-2);
 }
 
 .actions {
@@ -438,7 +500,6 @@
 }
 
 .zoneCarte .carte :global(.leaflet-popup-content) .avertissement {
-  margin-top: var(--space-3);
   font-style: italic;
   cursor: help;
 }
@@ -451,8 +512,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Infobulles (survol d'un point ou d'une grappe) */
+/* Infobulles (survol d'un point ou d'une grappe) : le pointeur peut passer dessus sans qu'elles disparaissent. */
 .infobulle:global(.leaflet-tooltip) {
+  pointer-events: auto;
   padding: 3px 8px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -612,22 +674,29 @@
 }
 
 /* Contrôles React posés sur la carte */
+/* Au-dessus des contrôles de Leaflet (z-index 1000), qui viennent après dans le DOM. */
 .choixVue {
   position: absolute;
   top: 10px;
   right: 10px;
-  z-index: 1000;
+  z-index: 1001;
   border-color: var(--c-border);
   background: var(--c-overlay);
   box-shadow: var(--shadow-2);
 }
 
+.zoneCarte:has(> .carte[data-basse] :global(.leaflet-popup)) .choixVue {
+  visibility: hidden;
+}
+
+/* Pastille des coordonnées : affichée seulement quand le curseur est sur la carte. */
 .coords {
   position: absolute;
   left: 10px;
   bottom: 10px;
-  z-index: 1000;
+  z-index: 1001;
   display: none;
+  opacity: 0;
   min-width: 11ch;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
@@ -637,6 +706,11 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
   pointer-events: none;
+  transition: opacity var(--duree);
+}
+
+.coords[data-visible] {
+  opacity: 1;
 }
 
 @media (hover: hover) {
@@ -645,23 +719,89 @@
   }
 }
 
-.encartVide {
+.encartVide,
+.rappelEncart {
   position: absolute;
   top: var(--space-4);
   left: 50%;
-  z-index: 1000;
+  z-index: 1001;
   transform: translateX(-50%);
-  display: grid;
+}
+
+/* Encart borné par la hauteur de la carte : seul son texte défile, le titre et « Explorer la carte » restent visibles. */
+.encartVide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-3);
-  justify-items: start;
   width: max-content;
   max-width: min(440px, calc(100% - 32px));
+  max-height: calc(100% - var(--space-4) - 28px);
+  overflow-y: auto;
   padding: var(--space-4);
   box-shadow: var(--shadow-2);
 }
 
+.encartVide > * {
+  flex: none;
+}
+
+/* Contour de focus des zones voisines non rogné par le défilement. */
+.encartVide > .corpsEncart {
+  flex: 0 1 auto;
+  display: grid;
+  gap: var(--space-3);
+  min-height: 0;
+  margin: -4px;
+  padding: 4px;
+  overflow-y: auto;
+}
+
+/* Fiche ouverte sur une carte étroite ou basse : le rappel de l'encart, posé au milieu en haut, s'efface. */
+.zoneCarte:has(> .carte:is([data-basse], [data-etroite]) :global(.leaflet-popup)) .rappelEncart {
+  visibility: hidden;
+}
+
+/* Carte étroite (data-etroite, mesurée) : l'encart descend sous le choix du fond et laisse libre la colonne des
+   boutons de zoom ; sur une carte basse, il défile au-dessus de la mention des sources plutôt que d'être coupé. */
+.zoneCarte {
+  --encart-haut: 56px;
+  --encart-gauche: 52px;
+  --encart-droite: 10px;
+}
+
+.zoneCarte:has(> .carte[data-etroite]) .encartVide,
+.zoneCarte:has(> .carte[data-etroite]) .rappelEncart {
+  top: var(--encart-haut);
+  right: var(--encart-droite);
+  left: var(--encart-gauche);
+  margin-inline: auto;
+  transform: none;
+}
+
+.zoneCarte:has(> .carte[data-etroite]) .encartVide {
+  max-width: min(440px, calc(100% - var(--encart-gauche) - var(--encart-droite)));
+  max-height: calc(100% - var(--encart-haut) - 28px);
+}
+
 .encartVide h2 {
   font-size: var(--fs-lg);
+}
+
+.encartVide h2:focus {
+  outline: none;
+}
+
+/* Encart replié : reste atteignable (au clavier, c'est le seul accès aux zones voisines d'une zone vide). */
+.zoneCarte .rappelEncart {
+  width: max-content;
+  max-width: calc(100% - 32px);
+  background: var(--c-overlay);
+  box-shadow: var(--shadow-2);
+}
+
+.zoneCarte .rappelEncart:hover {
+  background: var(--c-surface-2);
 }
 
 .voisinesEncart {
@@ -680,6 +820,11 @@
 /* Squelette de chargement */
 .squeletteChamp {
   height: 40px;
+}
+
+.squeletteTitre {
+  width: 160px;
+  height: 14px;
 }
 
 .squeletteSegments {
@@ -751,7 +896,10 @@
 /* Tablette */
 @media (min-width: 721px) and (max-width: 1099px) {
   .cadre {
-    grid-template-columns: minmax(240px, 26vw) minmax(0, 1fr);
+    grid-template-columns: minmax(272px, 28vw) minmax(0, 1fr);
+  }
+  .factions label {
+    padding: 0 6px;
   }
 }
 
@@ -783,6 +931,9 @@
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -6px 24px rgb(0 0 0 / 0.35);
     overscroll-behavior: contain;
+    /* Le contrôle qui prend le focus en remontant (Maj+Tab) ne passe pas sous la poignée collante. */
+    scroll-padding-top: calc(44px + var(--space-2));
+    scroll-padding-bottom: var(--space-2);
   }
 
   .poignee {
@@ -796,6 +947,7 @@
     gap: 6px;
     width: 100%;
     min-height: 44px;
+    margin-bottom: calc(-1 * var(--space-1));
     padding: 6px 0 4px;
     border: 0;
     background: var(--c-surface-1);
@@ -803,6 +955,11 @@
     font-size: var(--fs-sm);
     font-weight: 600;
     cursor: pointer;
+  }
+
+  /* Contour à l'intérieur : le panneau qui défile rognerait le haut. */
+  .poignee:focus-visible {
+    outline-offset: -3px;
   }
 
   .barrePoignee {
@@ -827,8 +984,9 @@
     padding-bottom: var(--space-3);
   }
 
-  .squeletteChamp {
-    margin-top: var(--space-6);
+  /* Même hauteur que le panneau replié : pas de saut quand la carte arrive. */
+  .filtres[aria-hidden] {
+    min-height: var(--sheet-peek);
   }
 
   .cadre:not([data-vide]) .carte :global(.leaflet-bottom) {
@@ -839,8 +997,31 @@
     bottom: calc(var(--sheet-peek) + 10px);
   }
 
-  .encartVide {
-    top: 58px;
+  .cadre:not([data-vide]) .zoneCarte:has(> .carte[data-etroite]) .encartVide {
+    max-height: calc(100% - var(--encart-haut) - var(--sheet-peek) - 12px);
+  }
+
+  /* Noms des catégories en entier : la puce grandit plutôt que de les couper (le title ne s'affiche pas au toucher). */
+  .nomCategorie {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* Sous le choix du fond de carte (50 px de haut en tactile). */
+  .encartVide,
+  .rappelEncart {
+    top: 70px;
+  }
+
+  /* Une seule zone de défilement : la fiche, bornée par la hauteur de la carte. */
+  .quetesLongues {
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 0;
+    mask-image: none;
   }
 
   .zoneCarte .etiquette a {
@@ -872,9 +1053,28 @@
     border-radius: var(--radius-md);
   }
 
+  /* Puce cochée : bordure de 2 px et coche (la case native est masquée), pas seulement une teinte. */
   .ligneCategorie:has(:checked) {
-    border-color: var(--c-accent-fill);
-    background: color-mix(in srgb, var(--c-accent-fill) 14%, transparent);
+    border-color: var(--c-selected);
+    box-shadow: inset 0 0 0 1px var(--c-selected);
+    background: color-mix(in srgb, var(--c-selected) 12%, transparent);
+  }
+
+  .ligneCategorie:has(:checked)::after {
+    content: "✓";
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--c-selected);
+    box-shadow: 0 0 0 2px var(--c-surface-1);
+    color: var(--c-on-selected);
+    font: 700 11px/1 var(--font-body);
+    pointer-events: none;
   }
 
   .ligneCategorie:has(:focus-visible) {
@@ -891,13 +1091,31 @@
     opacity: 0;
     cursor: pointer;
   }
+}
 
-  .nomCategorie {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-    line-height: 1.2;
+/* Petit téléphone : une colonne de puces, chaque nom tient sur sa ligne. */
+@media (max-width: 379px) and (pointer: coarse) {
+  .lignesCategories {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Fenêtre basse en mise en page mobile (zoom à 300 ou 400 %, petit téléphone en paysage) : le panneau replié se
+   réduit à sa poignée, et la page défile (la barre de zone s'en va) pour que la carte ait toute la hauteur sous
+   l'en-tête. La recherche dans la zone est dans le panneau ouvert. */
+@media (max-width: 720px) and (max-height: 480px) {
+  .cadre {
+    flex: none;
+    height: calc(100dvh - var(--header-h));
+  }
+
+  .filtres:not([data-ouvert]) .rechercheZone,
+  .squeletteChamp {
+    display: none;
+  }
+
+  .filtres[aria-hidden] {
+    min-height: 0;
   }
 }
 
@@ -912,13 +1130,18 @@
     padding-block: 13px;
   }
 
-  /* Cible de 44 px sans agrandir la ligne de statut (le panneau fermé reste bas). */
+  /* Cible de 44 px sans trop agrandir la ligne de statut (le panneau fermé reste bas) ; la marge basse plus courte la
+     garde dans le panneau, qui la rognerait. Contour à l'intérieur, pour la même raison. */
   .boutonLien {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
-    margin-block: -12px;
+    margin-block: -12px -8px;
     padding-inline: var(--space-1);
+  }
+
+  .boutonLien:focus-visible {
+    outline-offset: -3px;
   }
 
   .zoneCarte .carte :global(.leaflet-bar) a,
@@ -936,5 +1159,19 @@
 
   .teteFiche {
     padding-right: 40px;
+  }
+
+  /* Choix du fond de 50 px de haut, boutons de 44 px. */
+  .zoneCarte {
+    --encart-haut: 70px;
+    --encart-gauche: 66px;
+  }
+}
+
+/* Téléphone : pas de boutons de zoom, seul « Recentrer » occupe le coin, au-dessus de l'encart. */
+@media (max-width: 720px) and (pointer: coarse) {
+  .zoneCarte {
+    --encart-gauche: 16px;
+    --encart-droite: 16px;
   }
 }

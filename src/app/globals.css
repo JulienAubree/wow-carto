@@ -12,6 +12,8 @@
   --c-accent: #8a5a12; /* liens et texte accentué */
   --c-accent-fill: #c9952f; /* fond des boutons principaux et du segment actif */
   --c-on-accent: #1a1409; /* texte posé sur --c-accent-fill */
+  --c-selected: #8a5a12; /* segment actif, case cochée : ≥ 3:1 sur les surfaces */
+  --c-on-selected: #fffaf0;
   --c-focus: #9a6614;
   --c-alliance: #2f5fa8;
   --c-horde: #a8322a;
@@ -55,7 +57,7 @@
   --radius-pill: 999px;
   --header-h: 52px;
   --zonebar-h: 48px;
-  --sheet-peek: 120px; /* hauteur du sheet mobile fermé */
+  --sheet-peek: 128px; /* hauteur du sheet mobile fermé (mesurée par la carte, ceci pour le squelette) */
   --duree: 120ms;
 }
 
@@ -73,6 +75,8 @@
     --c-accent: #e3b65e;
     --c-accent-fill: #d9a441;
     --c-on-accent: #1a1409;
+    --c-selected: #d9a441;
+    --c-on-selected: #1a1409;
     --c-focus: #f0c873;
     --c-alliance: #6f9be0;
     --c-horde: #e0675d;
@@ -89,8 +93,10 @@
 }
 
 html {
-  accent-color: var(--c-accent-fill);
+  accent-color: var(--c-selected);
   -webkit-text-size-adjust: 100%;
+  /* L'en-tête collant ne cache pas l'élément qui prend le focus ou la cible d'une ancre. */
+  scroll-padding-top: calc(var(--header-h) + var(--space-2));
 }
 
 body {
@@ -146,6 +152,11 @@ textarea {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Mot composé (« Pins-Argentés », « CC BY-SA ») : pas de retour à la ligne au trait d'union. */
+.insecable {
+  white-space: nowrap;
 }
 
 /* Lien d'évitement : hors du flux, visible seulement au focus. */
@@ -246,11 +257,6 @@ textarea {
   color: var(--c-text);
 }
 
-body:has([data-page="recherche"]) .rechercheEntete,
-body:has([data-page="recherche"]) .lienRecherche {
-  display: none;
-}
-
 @media (max-width: 720px) {
   .rechercheEntete {
     display: none;
@@ -277,23 +283,6 @@ body:has([data-page="recherche"]) .lienRecherche {
 
 .contenu:focus {
   outline: none;
-}
-
-/* Page de zone : la carte occupe toute la hauteur, la page ne défile pas. */
-body:has([data-plein-ecran]) {
-  height: 100dvh;
-}
-
-body:has([data-plein-ecran]) .pied {
-  display: none;
-}
-
-.contenu:has([data-plein-ecran]) {
-  max-width: none;
-  padding: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Pied de page */

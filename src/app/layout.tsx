@@ -3,6 +3,8 @@ import Form from "next/form";
 import localFont from "next/font/local";
 import Link from "next/link";
 import { Loupe, Rose } from "@/components/Icones";
+import { EtatAncres } from "@/components/Ancres";
+import LienEvitement from "@/components/LienEvitement";
 import ui from "@/components/ui.module.css";
 import { NOM_SITE, OPEN_GRAPH } from "@/lib/site";
 import "./globals.css";
@@ -41,9 +43,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fr" className={alegreyaSC.variable}>
       <body>
-        <a href="#contenu" className="evitement">
-          Aller au contenu
-        </a>
+        <EtatAncres />
+        <LienEvitement />
         <header className="entete">
           <Link href="/" className="marque">
             <Rose />
@@ -79,7 +80,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <p>Site de fans non officiel, non affilié à Blizzard Entertainment.</p>
           <p>
             Fonds de carte et points tirés des fichiers du jeu © Blizzard Entertainment · Autres points : <a href="https://github.com/shagu/pfQuest">pfQuest</a>{" "}
-            (MIT), VMaNGOS · Contributions sous licence CC BY-SA 4.0.
+            (MIT), VMaNGOS · Contributions sous licence <span className="insecable">CC BY-SA 4.0</span>.
           </p>
         </footer>
       </body>

@@ -1,3 +1,5 @@
+import { echapper } from "@/lib/texte";
+
 // Glyphes des catégories : tracés SVG (viewBox 16 x 16), lisibles à 14 px dans un marqueur de 24 px.
 // Couleur héritée (currentColor) ; les trous sont faits par fill-rule="evenodd".
 export const ICONES: Record<string, string> = {
@@ -18,10 +20,6 @@ export const ICONES: Record<string, string> = {
   peche: "M1 8c2.1-3.5 5.6-4.6 8.6-3.2L14.6 2 13.2 8l1.4 6-5-2.8C6.6 12.6 3.1 11.5 1 8zm3.6-1.4a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
   tresor: "M2 6.2C2 3.9 3.9 2 6.2 2h3.6C12.1 2 14 3.9 14 6.2V7H2zM1.5 8h13v6h-13zm5.3-.6v3.4h2.4V7.4z",
 };
-
-function echapper(texte: string) {
-  return texte.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
 
 // HTML du glyphe pour un divIcon Leaflet. Slug inconnu : le glyphe de la base, en texte (︎ évite l'emoji).
 export function svgCategorie(slug: string, repli: string) {

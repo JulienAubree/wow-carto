@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { AncresContinents, DefilementAncre } from "@/components/Ancres";
 import FormulaireRecherche, { Exemples } from "@/components/FormulaireRecherche";
+import StyleActif from "@/components/StyleActif";
 import ui from "@/components/ui.module.css";
-import { compterPointsParZone, listerZones } from "@/lib/queries";
+import { compterPointsCartographies, listerZones } from "@/lib/queries";
 import { formatNiveaux } from "@/lib/texte";
 import { NOUVELLES_FOREVER } from "@/lib/zones";
 import styles from "./accueil.module.css";
@@ -17,20 +19,36 @@ const ANCRES = [
   { slug: "champs-de-bataille", nom: "Champs de bataille" },
 ];
 
+// Sur mobile, la rangée d'ancres est collée sous l'en-tête : elle compte aussi dans la marge de défilement.
+const MARGE_ANCRES = "@media (max-width:720px){html{scroll-padding-top:calc(var(--header-h) + 60px)}}";
+
 type ZoneListe = Awaited<ReturnType<typeof listerZones>>[number];
 type Continent = { nom: string; slug: string; zones: ZoneListe[] };
 
-function LigneZone({ zone, nbPoints }: { zone: ZoneListe; nbPoints: number }) {
+// « Forêt des Pins-Argentés » : pas de coupure au trait d'union.
+function nomInsecable(nom: string) {
+  return nom.split(/(\S*-\S*)/).map((morceau, i) =>
+    morceau.includes("-") ? (
+      <span key={i} className="insecable">
+        {morceau}
+      </span>
+    ) : (
+      morceau
+    ),
+  );
+}
+
+function LigneZone({ zone, nbPoints, pastilleNouveau }: { zone: ZoneListe; nbPoints: number; pastilleNouveau: boolean }) {
   const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
   const nouvelle = NOUVELLES_FOREVER.has(zone.slug);
   return (
     <li>
       <Link href={`/carte/${zone.slug}`} className={styles.ligneZone}>
         <span className={styles.nomZone}>
-          {zone.nom}
+          {nomInsecable(zone.nom)}
           {nouvelle && nbPoints === 0 && <small>à cartographier</small>}
         </span>
-        {nouvelle && <span className={`${ui.pilule} ${ui.pilulePlus}`}>Nouveau</span>}
+        {nouvelle && pastilleNouveau && <span className={`${ui.pilule} ${ui.pilulePlus}`}>Nouveau</span>}
         {niveaux && <span className={ui.pilule}>{niveaux}</span>}
       </Link>
     </li>
@@ -56,7 +74,7 @@ function CarteContinent({ continent, points }: { continent: Continent; points: M
           {groupes.length > 1 && <h3 className={styles.intertitre}>{g.titre}</h3>}
           <ul>
             {g.zones.map((z) => (
-              <LigneZone key={z.slug} zone={z} nbPoints={points.get(z.slug) ?? 0} />
+              <LigneZone key={z.slug} zone={z} nbPoints={points.get(z.slug) ?? 0} pastilleNouveau={groupes.length === 1} />
             ))}
           </ul>
         </div>
@@ -66,7 +84,7 @@ function CarteContinent({ continent, points }: { continent: Continent; points: M
 }
 
 async function ListeZones() {
-  const [zones, points] = await Promise.all([listerZones(), compterPointsParZone()]);
+  const [zones, points] = await Promise.all([listerZones(), compterPointsCartographies()]);
   if (zones.length === 0) return <p>Aucune zone pour l&apos;instant.</p>;
   const continents = new Map<string, Continent>();
   for (const z of zones) {
@@ -92,6 +110,7 @@ async function ListeZones() {
           ))}
         </div>
       )}
+      <DefilementAncre />
     </div>
   );
 }
@@ -108,6 +127,7 @@ function SqueletteContinents() {
 export default function Accueil() {
   return (
     <div className={styles.page}>
+      <StyleActif css={MARGE_ANCRES} />
       <header className={styles.entetePage}>
         <h1>Carte communautaire de WoW: Forever</h1>
         <p className={styles.accroche}>
@@ -126,15 +146,7 @@ export default function Accueil() {
           </p>
         </details>
       </header>
-      <nav className={styles.ancres} aria-label="Continents">
-        <ul>
-          {ANCRES.map((a) => (
-            <li key={a.slug}>
-              <a href={`#${a.slug}`}>{a.nom}</a>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <AncresContinents ancres={ANCRES} className={styles.ancres} />
       <Suspense fallback={<SqueletteContinents />}>
         <ListeZones />
       </Suspense>

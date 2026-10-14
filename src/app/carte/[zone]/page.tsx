@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FlecheRetour } from "@/components/Icones";
+import StyleActif from "@/components/StyleActif";
 import ZoneMapLoader from "@/components/ZoneMapLoader";
 import ZoneSquelette from "@/components/ZoneSquelette";
 import ui from "@/components/ui.module.css";
@@ -13,6 +14,12 @@ import { formatNiveaux } from "@/lib/texte";
 import type { ZoneCarte } from "@/lib/types";
 import { genreZone } from "@/lib/zones";
 import styles from "./zone.module.css";
+
+// La carte occupe toute la hauteur : la page ne défile pas et le pied est masqué. Fenêtre basse en mise en page
+// mobile (zoom à 400 %) : la page défile, la carte garde la hauteur sous l'en-tête (ZoneMap.module.css).
+const PLEIN_ECRAN =
+  "@media (min-width:721px),(min-height:481px){body{height:100dvh}}" +
+  ".pied{display:none}.contenu{max-width:none;padding:0;min-height:0;display:flex;flex-direction:column}";
 
 function idPoi(valeur: string | string[] | undefined) {
   const id = Number(valeur);
@@ -100,7 +107,8 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
 
 export default function PageZone(props: PageProps<"/carte/[zone]">) {
   return (
-    <div className={styles.pageCarte} data-plein-ecran>
+    <div className={styles.pageCarte}>
+      <StyleActif css={PLEIN_ECRAN} />
       <Suspense
         fallback={
           <>

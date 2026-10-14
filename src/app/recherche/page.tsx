@@ -1,14 +1,19 @@
-import { Suspense, type CSSProperties } from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import FormulaireRecherche, { Exemples } from "@/components/FormulaireRecherche";
-import IconeCategorie from "@/components/IconeCategorie";
+import { Pastille } from "@/components/IconeCategorie";
+import StyleActif from "@/components/StyleActif";
+import ZonesRepliables from "@/components/ZonesRepliables";
 import ui from "@/components/ui.module.css";
 import { TYPE_SINGULIER } from "@/lib/categories";
 import { listerZones, rechercher } from "@/lib/queries";
 import { formatNiveaux, normaliser } from "@/lib/texte";
 import type { ResultatRecherche } from "@/lib/types";
 import styles from "./recherche.module.css";
+
+// Le formulaire de la page suffit : pas de recherche dans l'en-tête.
+const SANS_RECHERCHE_ENTETE = ".rechercheEntete,.lienRecherche{display:none}";
 
 // Au-delà, sur mobile, les zones d'un même nom sont repliées.
 const ZONES_VISIBLES = 6;
@@ -54,23 +59,19 @@ function regrouper(resultats: ResultatRecherche[]) {
   return [...groupes.values()];
 }
 
-function Pastille({ slug, icone, couleur }: { slug: string; icone: string; couleur: string }) {
-  return (
-    <span className={ui.pastille} style={{ "--cat": couleur } as CSSProperties} aria-hidden="true">
-      <IconeCategorie slug={slug} repli={icone} />
-    </span>
-  );
-}
-
-function LienZone({ g, z }: { g: Groupe; z: ResultatRecherche }) {
+// Le nom accessible commence par le texte visible (« Dun Morogh 1–10 · 83 ») et le complète.
+function LienZone({ g, z, enPlus = false }: { g: Groupe; z: ResultatRecherche; enPlus?: boolean }) {
   const niveaux = formatNiveaux(z.zoneNiveauMin, z.zoneNiveauMax);
   const href = z.nombre === 1 ? `/carte/${z.zoneSlug}?poi=${z.premierId}` : `/carte/${z.zoneSlug}?q=${encodeURIComponent(g.nom)}`;
   return (
-    <li>
-      <Link href={href} className={styles.lienZone} aria-label={`${g.nom} à ${z.zoneNom}, ${pluriel(z.nombre, "emplacement")}`}>
-        {z.zoneNom}
-        {niveaux && <span className={styles.niveaux}>{niveaux}</span>}
+    <li className={enPlus ? styles.enPlus : undefined}>
+      <Link href={href} className={styles.lienZone}>
+        {z.zoneNom}{" "}
+        {niveaux && <span className={styles.niveaux}>{niveaux} </span>}
         <span className={styles.nombre}>· {nombre(z.nombre)}</span>
+        <span className="sr-only">
+          {` ${z.nombre > 1 ? "emplacements" : "emplacement"} de ${g.nom}`}
+        </span>
       </Link>
     </li>
   );
@@ -111,23 +112,17 @@ function GroupePoints({ g }: { g: Groupe }) {
           </span>
         </span>
       </div>
-      <ul className={styles.zonesGroupe}>
-        {visibles.map((z) => (
+      <ZonesRepliables
+        classeListe={styles.zonesGroupe}
+        classeBouton={styles.plusDeZones}
+        nombreAutres={reste.length}
+        premieres={visibles.map((z) => (
           <LienZone key={z.zoneSlug} g={g} z={z} />
         ))}
-        {reste.length > 0 && (
-          <li className={styles.reste}>
-            <details>
-              <summary>+{pluriel(reste.length, "zone")}</summary>
-              <ul className={styles.zonesGroupe}>
-                {reste.map((z) => (
-                  <LienZone key={z.zoneSlug} g={g} z={z} />
-                ))}
-              </ul>
-            </details>
-          </li>
-        )}
-      </ul>
+        autres={reste.map((z) => (
+          <LienZone key={z.zoneSlug} g={g} z={z} enPlus />
+        ))}
+      />
     </li>
   );
 }
@@ -230,7 +225,8 @@ function SqueletteResultats() {
 
 export default function PageRecherche(props: PageProps<"/recherche">) {
   return (
-    <div className={styles.page} data-page="recherche">
+    <div className={styles.page}>
+      <StyleActif css={SANS_RECHERCHE_ENTETE} />
       <h1>Recherche</h1>
       <Suspense fallback={<SqueletteResultats />}>
         <Resultats {...props} />

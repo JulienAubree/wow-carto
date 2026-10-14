@@ -11,3 +11,8 @@ export function formatNiveaux(min: number | null | undefined, max: number | null
   if (min == null) return null;
   return max == null || max === min ? `${min}` : `${min}–${max}`;
 }
+
+// Texte inséré dans du HTML construit à la main (fiches et étiquettes Leaflet).
+export function echapper(texte: string) {
+  return texte.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}

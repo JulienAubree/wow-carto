@@ -7,6 +7,10 @@ export default function ZoneSquelette() {
   return (
     <div className={styles.cadre}>
       <div className={`${ui.surface} ${styles.filtres}`} aria-hidden="true">
+        <div className={styles.poignee}>
+          <span className={styles.barrePoignee} />
+          <span className={`${ui.squelette} ${styles.squeletteTitre}`} />
+        </div>
         <div className={`${ui.squelette} ${styles.squeletteChamp}`} />
         <div className={styles.squeletteSegments}>
           <span className={ui.squelette} />
