@@ -1,9 +1,21 @@
+import type { MondeZone } from "./monde";
+
 export type ZoneCarte = {
   slug: string;
   nom: string;
   carteUrl: string;
   largeur: number;
   hauteur: number;
+  // Place de la zone dans le monde, pour la vue terrain ; null : carte du jeu seule.
+  monde: MondeZone | null;
+};
+
+// Nom d'une zone voisine affiché sur la vue terrain, au centre de sa carte.
+export type EtiquetteZone = {
+  slug: string;
+  nom: string;
+  niveaux: string | null;
+  centre: [number, number];
 };
 
 export type CategorieCarte = {

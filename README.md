@@ -7,7 +7,7 @@ Site de fans non officiel. World of Warcraft © Blizzard Entertainment.
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript, Cache Components)
-- **Leaflet** en `CRS.Simple` : chaque zone est une image, les points sont stockés en coordonnées du jeu (x, y de 0 à 100, comme `/way`)
+- **Leaflet** en `CRS.Simple` : vue terrain en tuiles (la minimap du jeu vue de dessus) et carte du jeu de chaque zone en option ; les points sont stockés en coordonnées du jeu (x, y de 0 à 100 sur la carte de la zone, comme `/way`)
 - **PostgreSQL** + **Drizzle ORM** (migrations dans `drizzle/`)
 - Hébergé sur le VPS Exilium : PM2 + Caddy (voir `deploy/`)
 
@@ -31,14 +31,16 @@ Autres commandes : `npm run typecheck`, `npm run lint`, `npm run db:generate` (a
 | Chemin | Rôle |
 |---|---|
 | `src/db/schema.ts` | Schéma : zones, catégories, points, révisions, contributions, signalements, confirmations, utilisateurs |
-| `src/lib/coords.ts` | Conversion coordonnées du jeu ↔ Leaflet |
-| `src/components/ZoneMap.tsx` | Carte Leaflet : marqueurs, filtres par catégorie, coordonnées sous le curseur |
+| `src/lib/coords.ts`, `src/lib/monde.ts` | Conversion coordonnées du jeu ↔ monde ↔ Leaflet, place de chaque zone dans le monde |
+| `src/components/ZoneMap.tsx` | Carte Leaflet : vue terrain ou carte du jeu, marqueurs, filtres par catégorie, coordonnées sous le curseur |
 | `src/app/carte/[zone]` | Page d'une zone ; `?poi=123` ouvre directement un point |
 | `src/app/api/zones/[slug]/pois` | Points d'une zone en JSON |
 | `src/app/api/sante` | Vérification de l'app et de la base |
 | `src/app/recherche` | Recherche par nom dans toutes les zones |
+| `public/cartes/terrain/` | Vue terrain des Royaumes de l'Est (`azeroth`) et de Kalimdor : tuiles de minimap du client de WoW: Forever, `<z>/<x>/<y>.webp` |
 | `public/cartes/forever/` | Cartes des zones et continents tirées du client français de WoW: Forever (1002 x 668 px, toutes sous-zones révélées) |
-| `data/forever/cartes.json` | Position de chaque carte dans le monde, dans Forever et dans Classic, pour recaler les points |
+| `data/forever/cartes.json` | Position de chaque carte dans le monde, dans Forever et dans Classic : place la zone sur la vue terrain et recale les points |
+| `data/forever/terrain.json` | Étendue des tuiles de la vue terrain |
 | `data/classic/pois.json.gz` | Points importés (PNJ, services, rares, minerais, herbes, bancs de poissons, coffres) |
 | `scripts/importer-classic.ts` | Import des zones, catégories et points dans la base |
 | `scripts/cartes/`, `scripts/donnees/` | Extraction des cartes depuis le client du jeu et régénération des points |
@@ -59,6 +61,7 @@ Une seule fois :
 
 | Donnée | Source | Licence ou statut |
 |---|---|---|
+| Vue terrain (minimap vue de dessus) | Textures de minimap du client WoW: Forever 1.60.1, lues sur un client installé | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Cartes des zones et continents, en français | Textures et tables de la carte du monde du client WoW: Forever 1.60.1 frFR, lues sur un client installé (tables `UiMap…` et `WorldMapOverlay…` du même build publiées par [wago.tools](https://wago.tools)) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Points (PNJ, services, rares, minerais, herbes, bancs de poissons, coffres, boîtes aux lettres, pierres de rencontre) et noms français | Base de l'addon [pfQuest](https://github.com/shagu/pfQuest) (`db/`), elle-même issue de [VMaNGOS](https://github.com/vmangos) | MIT, © Eric Mauser (Shagu) |
 

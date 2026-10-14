@@ -6,7 +6,8 @@ Usage : python3 scripts/cartes/forever.py <dossier sortie/ de client/extraire_to
   public/cartes/forever/<slug>.webp   carte de la zone, 1002 x 668 px, sous-zones révélées
   data/forever/cartes.json            bornes de chaque carte dans le monde, dans Forever et dans
                                       Classic Era : scripts/donnees/extraire_pfquest.py s'en sert
-                                      pour recaler les points de Classic sur les cartes de Forever.
+                                      pour recaler les points de Classic sur les cartes de Forever,
+                                      et le site pour placer la zone sur la vue terrain.
 Il faut Python 3 avec Pillow.
 """
 import csv
@@ -42,6 +43,10 @@ CARTES = {
 }
 
 LARGEUR, HAUTEUR = 1002, 668
+
+# MapID -> tuiles de la vue terrain (scripts/cartes/terrain.py). Les autres cartes (îles à part,
+# champs de bataille) n'ont que la carte du jeu.
+TERRAIN = {"0": "azeroth", "1": "kalimdor"}
 
 
 def bornes(ligne, prefixe):
@@ -81,6 +86,7 @@ def main():
             "nomUiMap": r["nom"].replace("’", "'"),
             "forever": bornes(r, "region_"),
             "classic": classic.get(ui_map),
+            "terrain": TERRAIN.get(r["mapID"]),
         }
     with open(os.path.join(RACINE, "data", "forever", "cartes.json"), "w", encoding="utf-8") as f:
         lignes = [f"  {json.dumps(s)}: {json.dumps(c, ensure_ascii=False)}" for s, c in cartes.items()]

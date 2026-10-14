@@ -6,14 +6,25 @@ import "@/lib/leaflet-global";
 import "leaflet.markercluster";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
-import { formatCoords, jeuVersLeaflet, leafletVersJeu } from "@/lib/coords";
-import type { CategorieCarte, PoiCarte, ZoneCarte } from "@/lib/types";
+import {
+  ECHELLE_TERRAIN,
+  ORIGINE_TERRAIN,
+  formatCoords,
+  jeuVersLeaflet,
+  jeuVersMonde,
+  leafletVersJeu,
+  limitesAdt,
+  limitesMonde,
+  mondeVersJeu,
+} from "@/lib/coords";
+import type { CategorieCarte, EtiquetteZone, PoiCarte, ZoneCarte } from "@/lib/types";
 import styles from "./ZoneMap.module.css";
 
 type Props = {
   zone: ZoneCarte;
   categories: CategorieCarte[];
   pois: PoiCarte[];
+  etiquettes?: EtiquetteZone[];
   poiInitial?: number;
   rechercheInitiale?: string;
 };
@@ -72,6 +83,20 @@ function fiche(p: PoiCarte, cat: CategorieCarte) {
   );
 }
 
+// Vue terrain : coordonnées du monde ([x, -y]), tuiles de 512 px, une ADT par tuile au zoom 6.
+const CRS_TERRAIN = L.extend({}, L.CRS.Simple, {
+  transformation: new L.Transformation(ECHELLE_TERRAIN, ECHELLE_TERRAIN * ORIGINE_TERRAIN, -ECHELLE_TERRAIN, ECHELLE_TERRAIN * ORIGINE_TERRAIN),
+});
+const TUILE_VIDE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+function etiquette(e: EtiquetteZone) {
+  return L.divIcon({
+    className: styles.etiquette,
+    html: `<a href="/carte/${e.slug}">${echapper(e.nom)}${e.niveaux ? `<small>${e.niveaux}</small>` : ""}</a>`,
+    iconSize: [0, 0],
+  });
+}
+
 function clusterIcone(groupe: L.MarkerCluster) {
   const n = groupe.getChildCount();
   const taille = n < 10 ? 30 : n < 100 ? 36 : 42;
@@ -82,7 +107,9 @@ function clusterIcone(groupe: L.MarkerCluster) {
   });
 }
 
-export default function ZoneMap({ zone, categories, pois, poiInitial, rechercheInitiale = "" }: Props) {
+const AUCUNE_ETIQUETTE: EtiquetteZone[] = [];
+
+export default function ZoneMap({ zone, categories, pois, etiquettes = AUCUNE_ETIQUETTE, poiInitial, rechercheInitiale = "" }: Props) {
   const conteneur = useRef<HTMLDivElement>(null);
   const carte = useRef<L.Map | null>(null);
   const grappe = useRef<L.MarkerClusterGroup | null>(null);
@@ -115,27 +142,59 @@ export default function ZoneMap({ zone, categories, pois, poiInitial, rechercheI
 
   useEffect(() => {
     if (!conteneur.current) return;
+    const monde = zone.monde;
     const taille = { largeur: zone.largeur, hauteur: zone.hauteur };
-    const limites: L.LatLngBoundsExpression = [
-      [0, 0],
-      [zone.hauteur, zone.largeur],
-    ];
-    const map = L.map(conteneur.current, {
-      crs: L.CRS.Simple,
-      minZoom: -1,
-      maxZoom: 2,
-      zoomSnap: 0.25,
-      maxBounds: L.latLngBounds(limites).pad(0.15),
-      attributionControl: false,
-    });
-    L.imageOverlay(zone.carteUrl, limites).addTo(map);
-    map.fitBounds(limites);
-    map.on("mousemove", (e) => setCurseur(leafletVersJeu(e.latlng.lat, e.latlng.lng, taille)));
+    // Position d'un point (x, y de 0 à 100 sur la carte de la zone) dans les coordonnées de la carte Leaflet, et inverse.
+    const versCarte = (x: number, y: number) => (monde ? jeuVersMonde(x, y, monde.bornes) : jeuVersLeaflet(x, y, taille));
+    const versJeu = (p: L.LatLng) => (monde ? mondeVersJeu(p.lat, p.lng, monde.bornes) : leafletVersJeu(p.lat, p.lng, taille));
+    let map: L.Map;
+    if (monde) {
+      // Vue terrain (minimap du jeu), la carte du jeu en option, posée exactement sur la zone.
+      const limites = L.latLngBounds(limitesMonde(monde.bornes));
+      map = L.map(conteneur.current, {
+        crs: CRS_TERRAIN,
+        maxZoom: 8,
+        zoomSnap: 0.25,
+        maxBounds: limites.pad(0.5),
+        attributionControl: false,
+      });
+      const terrain = L.tileLayer(`/cartes/terrain/${monde.terrain}/{z}/{x}/{y}.webp`, {
+        tileSize: 512,
+        maxNativeZoom: 6,
+        maxZoom: 8,
+        noWrap: true,
+        bounds: L.latLngBounds(limitesAdt(monde.adt)),
+        errorTileUrl: TUILE_VIDE,
+      }).addTo(map);
+      const parchemin = L.imageOverlay(zone.carteUrl, limites);
+      L.control.layers({ Terrain: terrain, "Carte du jeu": parchemin }, undefined, { collapsed: false }).addTo(map);
+      map.fitBounds(limites);
+      map.setMinZoom(Math.max(0, map.getZoom() - 1));
+      map.createPane("etiquettes").style.zIndex = "450";
+      for (const e of etiquettes) L.marker(e.centre, { icon: etiquette(e), pane: "etiquettes", keyboard: false }).addTo(map);
+    } else {
+      const limites: L.LatLngBoundsExpression = [
+        [0, 0],
+        [zone.hauteur, zone.largeur],
+      ];
+      map = L.map(conteneur.current, {
+        crs: L.CRS.Simple,
+        minZoom: -1,
+        maxZoom: 2,
+        zoomSnap: 0.25,
+        maxBounds: L.latLngBounds(limites).pad(0.15),
+        attributionControl: false,
+      });
+      L.imageOverlay(zone.carteUrl, limites).addTo(map);
+      map.fitBounds(limites);
+    }
+    map.on("mousemove", (e) => setCurseur(versJeu(e.latlng)));
     map.on("mouseout", () => setCurseur(null));
 
     const groupe = L.markerClusterGroup({
       maxClusterRadius: 28,
-      disableClusteringAtZoom: 1,
+      // Points détaillés dès le premier zoom avant sur la zone entière.
+      disableClusteringAtZoom: Math.floor(map.getZoom()) + 1,
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: false,
       iconCreateFunction: clusterIcone,
@@ -146,7 +205,7 @@ export default function ZoneMap({ zone, categories, pois, poiInitial, rechercheI
     for (const p of pois) {
       const cat = categoriesParId.get(p.categorieId);
       if (!cat) continue;
-      const m = L.marker(jeuVersLeaflet(p.x, p.y, taille), { icon: icones.get(cat.id), title: p.nom })
+      const m = L.marker(versCarte(p.x, p.y), { icon: icones.get(cat.id), title: p.nom })
         .bindPopup(() => fiche(p, cat), { maxWidth: 320 })
         .on("click", () => history.replaceState(null, "", `?poi=${p.id}`));
       tous.set(p.id, m);
@@ -161,7 +220,7 @@ export default function ZoneMap({ zone, categories, pois, poiInitial, rechercheI
       grappe.current = null;
       setPret(false);
     };
-  }, [zone, categories, categoriesParId, pois]);
+  }, [zone, categories, categoriesParId, pois, etiquettes]);
 
   // Applique les filtres : la grappe est vidée puis remplie en une fois (rapide même avec 2 000 points).
   useEffect(() => {

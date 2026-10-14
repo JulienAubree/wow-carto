@@ -1,6 +1,6 @@
 # Extraire les cartes et régénérer les points
 
-Les fichiers produits sont versionnés (`public/cartes/forever/*.webp`, `data/forever/cartes.json`, `data/classic/pois.json.gz`) : ces étapes ne servent qu'à les refaire, par exemple après une mise à jour de WoW: Forever. Il faut Python 3 ; Pillow pour les deux dernières étapes.
+Les fichiers produits sont versionnés (`public/cartes/forever/*.webp`, `public/cartes/terrain/`, `data/forever/*.json`, `data/classic/pois.json.gz`) : ces étapes ne servent qu'à les refaire, par exemple après une mise à jour de WoW: Forever. Il faut Python 3 ; Pillow pour les deux dernières étapes.
 
 ## 1. Extraire les cartes du client (sur l'ordinateur où le jeu est installé)
 
@@ -23,6 +23,12 @@ python3 -I extraire_tout.py "/Applications/World of Warcraft"
 
 Le script écrit dans `sortie/` une image PNG par carte (`<UiMapID>.png`), `zones.csv` (nom, taille, bornes dans le monde, erreurs) et une copie des bornes de Classic Era. Une ligne « attention: » signale une texture sans version française.
 
+Pour la vue terrain, `client/extraire_minimap.py` lit de la même façon les tuiles de minimap des Royaumes de l'Est et de Kalimdor (une image de 512 x 512 px par ADT, listées dans le WDT de chaque carte) ; il n'a pas besoin des tables :
+
+```bash
+python3 -I extraire_minimap.py "/Applications/World of Warcraft" minimap
+```
+
 La première extraction (14 octobre 2026) vient du client 1.60.1.70205 frFR, avec les tables du build 1.60.1.70338.
 
 ## 2. Convertir les cartes pour le site
@@ -32,6 +38,12 @@ python3 -I scripts/cartes/forever.py ~/extraction-cartes/sortie
 ```
 
 Écrit `public/cartes/forever/<slug>.webp` et `data/forever/cartes.json`. La correspondance UiMapID → slug est dans `forever.py` ; une nouvelle zone s'ajoute là et dans `scripts/donnees/zones.ts`.
+
+```bash
+python3 -I scripts/cartes/terrain.py ~/extraction-cartes/minimap
+```
+
+Écrit les tuiles de la vue terrain, `public/cartes/terrain/<carte>/<z>/<x>/<y>.webp` (zooms 0 à 6, une ADT par tuile au zoom 6), et `data/forever/terrain.json`. Les zones des Royaumes de l'Est et de Kalimdor s'affichent sur cette vue, à la place donnée par leurs bornes ; les îles à part (Zéphras, Sombrelances) et les champs de bataille n'ont que la carte du jeu.
 
 ## 3. Régénérer les points
 

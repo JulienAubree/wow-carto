@@ -2,11 +2,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ZoneMapLoader from "@/components/ZoneMapLoader";
-import { chargerZone } from "@/lib/queries";
+import { chargerZone, etiquettesVoisines } from "@/lib/queries";
 
 async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
   const [{ zone: slug }, recherche] = await Promise.all([params, searchParams]);
-  const donnees = await chargerZone(slug);
+  const [donnees, etiquettes] = await Promise.all([chargerZone(slug), etiquettesVoisines(slug)]);
   if (!donnees) notFound();
   const poi = Number(recherche.poi);
   const q = typeof recherche.q === "string" ? recherche.q : undefined;
@@ -24,6 +24,7 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
       <ZoneMapLoader
         key={`${slug}-${q ?? ""}`}
         {...donnees}
+        etiquettes={etiquettes}
         poiInitial={Number.isInteger(poi) && poi > 0 ? poi : undefined}
         rechercheInitiale={q}
       />
