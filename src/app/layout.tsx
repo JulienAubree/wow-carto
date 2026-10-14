@@ -17,9 +17,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="contenu">{children}</main>
         <footer className="pied">
           Site de fans non officiel. World of Warcraft, les fonds de carte et les points tirés des fichiers du jeu ©
-          Blizzard Entertainment. Autres points de départ issus de <a href="https://github.com/shagu/pfQuest">pfQuest</a>{" "}
-          (licence MIT) et du projet VMaNGOS. Les
-          contributions de la communauté sont publiées sous licence CC BY-SA 4.0.
+          Blizzard Entertainment. Les contributions de la communauté sont publiées sous licence CC BY-SA 4.0.
         </footer>
       </body>
     </html>

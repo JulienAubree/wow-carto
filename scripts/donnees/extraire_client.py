@@ -10,9 +10,7 @@ Usage :
 
 <dossier des tables> : les .db2 écrits par scripts/cartes/client/extraire_tables.py ;
 <aires.json> : la zone de chaque parcelle du terrain, écrite par scripts/cartes/client/extraire_aires.py.
-Sortie par défaut : data/forever/client.json, importé par scripts/importer-classic.ts avec les points
-de pfQuest. scripts/donnees/extraire_pfquest.py s'en sert aussi pour placer les maîtres de vol de
-pfQuest sur les nœuds de vol de Forever.
+Sortie par défaut : data/forever/client.json, importé par scripts/importer-classic.ts.
 
 Les définitions des tables viennent de WoWDBDefs (https://github.com/wowdev/WoWDBDefs, CC BY-SA 4.0) ;
 celles qui manquent sont téléchargées dans scripts/donnees/.dbd/.

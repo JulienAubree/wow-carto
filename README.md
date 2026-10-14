@@ -20,7 +20,7 @@ npm install
 cp .env.example .env          # puis renseigner DATABASE_URL
 set -a; . ./.env; set +a
 npm run db:migrate            # crée les tables
-npm run db:import-classic     # 54 zones, catégories et ~25 500 points
+npm run db:import-classic     # 54 zones, catégories et 90 points
 npm run dev                   # http://localhost:3000
 ```
 
@@ -39,9 +39,8 @@ Autres commandes : `npm run typecheck`, `npm run lint`, `npm run db:generate` (a
 | `src/app/recherche` | Recherche par nom dans toutes les zones |
 | `public/cartes/terrain/` | Vue terrain des Royaumes de l'Est (`azeroth`) et de Kalimdor : tuiles de minimap du client de WoW: Forever, `<z>/<x>/<y>.webp` |
 | `public/cartes/forever/` | Cartes des zones et continents tirées du client français de WoW: Forever (1002 x 668 px, toutes sous-zones révélées) |
-| `data/forever/cartes.json` | Position de chaque carte dans le monde, dans Forever et dans Classic : place la zone sur la vue terrain et recale les points |
+| `data/forever/cartes.json` | Position de chaque carte dans le monde : place la zone sur la vue terrain et les points du client sur leur carte |
 | `data/forever/terrain.json` | Étendue des tuiles de la vue terrain |
-| `data/classic/pois.json.gz` | Points importés (PNJ, services, rares, minerais, herbes, bancs de poissons, coffres) |
 | `data/forever/client.json` | Points lus dans les tables du client de WoW: Forever : nœuds de vol et entrées de donjons et de raids |
 | `scripts/importer-classic.ts` | Import des zones, catégories et points dans la base |
 | `scripts/cartes/`, `scripts/donnees/` | Extraction des cartes depuis le client du jeu et régénération des points |
@@ -64,14 +63,11 @@ Une seule fois :
 |---|---|---|
 | Vue terrain (minimap vue de dessus) | Textures de minimap du client WoW: Forever 1.60.1, lues sur un client installé | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Cartes des zones et continents, en français | Textures et tables de la carte du monde du client WoW: Forever 1.60.1 frFR, lues sur un client installé (tables `UiMap…` et `WorldMapOverlay…` du même build publiées par [wago.tools](https://wago.tools)) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
-| Points (PNJ, services, rares, minerais, herbes, bancs de poissons, coffres, boîtes aux lettres, pierres de rencontre) et noms français | Base de l'addon [pfQuest](https://github.com/shagu/pfQuest) (`db/`), elle-même issue de [VMaNGOS](https://github.com/vmangos) | MIT, © Eric Mauser (Shagu) |
-| Nœuds de vol, entrées de donjons et de raids, position des maîtres de vol | Tables `TaxiNodes`, `Map`, `AreaTable` et `UiMapAssignment` du client WoW: Forever 1.60.1 frFR, lues sur un client installé (structure des tables d'après [WoWDBDefs](https://github.com/wowdev/WoWDBDefs), téléchargée à l'extraction et non redistribuée) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
+| Nœuds de vol, entrées de donjons et de raids | Tables `TaxiNodes`, `Map`, `AreaTable` et `UiMapAssignment` du client WoW: Forever 1.60.1 frFR, lues sur un client installé (structure des tables d'après [WoWDBDefs](https://github.com/wowdev/WoWDBDefs), téléchargée à l'extraction et non redistribuée) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 
-Les points de pfQuest sont ceux de Classic 1.12, placés sur les cartes de Forever : sur les cartes qui couvrent une autre portion du monde que dans Classic (Mulgore, Hurlevent, Les Carmines, Maleterres de l'Est), leur position est recalculée. WoW: Forever modifie une partie des zones, les points importés portent `donnees.source = "pfquest"` pour être repérés et corrigés par la communauté.
+Le client du jeu ne contient que ce qui s'affiche sans le serveur : les nœuds de vol de Forever (y compris ceux du Mont Hyjal et des Rives Claires) et les entrées des donjons et des raids de Classic, sauf Naxxramas, en viennent (`donnees.source = "client"`). Les PNJ, les herbes, les minerais et les coffres sont envoyés par le serveur : ils viendront des contributions, comme les maîtres de métier et de classe et les entrées de Naxxramas et des nouvelles instances. L'Île de Zéphras, les Îles des Sombrelances et Shen'dralas n'ont encore aucun point.
 
-Le client du jeu ne contient que ce qui s'affiche sans le serveur. Les nœuds de vol de Forever (y compris ceux du Mont Hyjal et des Rives Claires) et les entrées des donjons et des raids de Classic, sauf Naxxramas, en viennent (`donnees.source = "client"`), et les maîtres de vol de pfQuest sont placés sur le nœud de vol de Forever le plus proche, à moins de 60 m (`donnees.position = "forever"`) ; seule Sulhasa, au Repos des vaillants, n'a pas de nœud dans Forever et garde sa position de Classic. Les PNJ, les herbes, les minerais et les coffres sont envoyés par le serveur : le Mont Hyjal et les Rives Claires n'ont que leurs nœuds de vol, l'Île de Zéphras, les Îles des Sombrelances et Shen'dralas n'ont encore aucun point, et les maîtres de métier et de classe et les entrées de Naxxramas et des nouvelles instances viendront des contributions.
-
-Le texte complet de la licence MIT de pfQuest est dans `THIRD_PARTY_NOTICES.md`. Extraire à nouveau les cartes et régénérer les points : voir `scripts/cartes/README.md`.
+Extraire à nouveau les cartes et régénérer les points : voir `scripts/cartes/README.md`.
 
 ## Contributions
 
