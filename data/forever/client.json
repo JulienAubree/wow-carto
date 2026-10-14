@@ -724,82 +724,6 @@
    }
   },
   {
-   "zone": "maleterres-de-l-est",
-   "categorie": "maitre-vol",
-   "nom": "Tour de Pestebois",
-   "x": 18.45,
-   "y": 24.17,
-   "description": null,
-   "monde": [
-    0,
-    2998.7,
-    -3050.1
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 84,
-    "faction": "neutre"
-   }
-  },
-  {
-   "zone": "maleterres-de-l-est",
-   "categorie": "maitre-vol",
-   "nom": "Tour de garde de la couronne",
-   "x": 32.59,
-   "y": 63.98,
-   "description": null,
-   "monde": [
-    0,
-    1857.6,
-    -3658.5
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 87,
-    "faction": "neutre"
-   }
-  },
-  {
-   "zone": "maleterres-de-l-est",
-   "categorie": "maitre-vol",
-   "nom": "Tour du Col du nord",
-   "x": 47.16,
-   "y": 20.31,
-   "description": null,
-   "monde": [
-    0,
-    3109.3,
-    -4285.1
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 85,
-    "faction": "neutre"
-   }
-  },
-  {
-   "zone": "maleterres-de-l-est",
-   "categorie": "maitre-vol",
-   "nom": "Tour du Mur d'est",
-   "x": 57.8,
-   "y": 41.6,
-   "description": null,
-   "monde": [
-    0,
-    2499.2,
-    -4742.9
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 86,
-    "faction": "neutre"
-   }
-  },
-  {
    "zone": "maleterres-de-l-ouest",
    "categorie": "donjon",
    "nom": "Scholomance",
@@ -1157,44 +1081,6 @@
     "source": "client",
     "table": "TaxiNodes",
     "idClient": 22,
-    "faction": "horde"
-   }
-  },
-  {
-   "zone": "reflet-de-lune",
-   "categorie": "maitre-vol",
-   "nom": "Havrenuit",
-   "x": 44.28,
-   "y": 45.34,
-   "description": null,
-   "monde": [
-    1,
-    7793.6,
-    -2403.5
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 62,
-    "faction": "alliance"
-   }
-  },
-  {
-   "zone": "reflet-de-lune",
-   "categorie": "maitre-vol",
-   "nom": "Havrenuit",
-   "x": 44.31,
-   "y": 45.72,
-   "description": null,
-   "monde": [
-    1,
-    7787.7,
-    -2404.1
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 63,
     "faction": "horde"
    }
   },
@@ -1747,44 +1633,6 @@
     "table": "TaxiNodes",
     "idClient": 21,
     "faction": "horde"
-   }
-  },
-  {
-   "zone": "vallee-d-alterac",
-   "categorie": "maitre-vol",
-   "nom": "Donjon Frostwolf",
-   "x": 49.58,
-   "y": 85.69,
-   "description": null,
-   "monde": [
-    30,
-    -1335.4,
-    -319.7
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 60,
-    "faction": "horde"
-   }
-  },
-  {
-   "zone": "vallee-d-alterac",
-   "categorie": "maitre-vol",
-   "nom": "Dun Baldar",
-   "x": 43.14,
-   "y": 18.1,
-   "description": null,
-   "monde": [
-    30,
-    574.2,
-    -46.7
-   ],
-   "donnees": {
-    "source": "client",
-    "table": "TaxiNodes",
-    "idClient": 59,
-    "faction": "alliance"
    }
   },
   {

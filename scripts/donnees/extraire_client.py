@@ -139,11 +139,12 @@ def main():
             "donnees": {"source": "client", "table": table_, "idClient": ident, **{k: v for k, v in donnees.items() if v not in (None, "")}},
         })
 
-    # Nœuds de vol affichés sur la carte de vol d'au moins une faction (drapeaux 1 : Alliance, 2 : Horde).
-    # Les anciens nœuds gardés dans la table sont préfixés « zzOLD ».
+    # Nœuds de vol affichés sur la carte de vol d'au moins une faction (drapeaux 1 : Alliance, 2 : Horde) et
+    # que l'on apprend (CharacterBitNumber) : pas les vols scriptés sans maître de vol (tours des Maleterres
+    # de l'Est, Vallée d'Alterac) ni ceux des druides à Havrenuit. Les anciens nœuds sont préfixés « zzOLD ».
     for n in table(dossier, "TaxiNodes"):
         faction = FACTIONS.get(n["Flags"] & 3)
-        if not faction or not n["Name_lang"] or n["Name_lang"].startswith("zz"):
+        if not faction or not n["CharacterBitNumber"] or not n["Name_lang"] or n["Name_lang"].startswith("zz"):
             continue
         ajouter("maitre-vol", "TaxiNodes", n["ID"], n["Name_lang"].split(",")[0].strip(), n["ContinentID"], n["Pos"], {"faction": faction})
 
