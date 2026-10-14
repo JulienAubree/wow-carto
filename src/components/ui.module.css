@@ -1,0 +1,219 @@
+/* Composants de base partagés par toutes les pages. */
+
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border-strong);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duree),
+    filter var(--duree),
+    transform var(--duree);
+}
+
+.bouton:hover {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.bouton:active {
+  transform: translateY(1px);
+}
+
+.boutonPrincipal {
+  background: var(--c-accent-fill);
+  color: var(--c-on-accent);
+  border-color: transparent;
+}
+
+.boutonPrincipal:hover {
+  background: var(--c-accent-fill);
+  color: var(--c-on-accent);
+  filter: brightness(1.06);
+}
+
+/* Bouton carré qui ne contient qu'une icône (avec aria-label). */
+.boutonIcone {
+  padding: 0;
+  width: 40px;
+  min-height: 40px;
+}
+
+.compact {
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.segmente {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.segmente label {
+  position: relative;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border-radius: calc(var(--radius-md) - 2px);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duree);
+}
+
+.segmente label:hover {
+  background: var(--c-surface-2);
+}
+
+.segmente input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmente label:has(:checked) {
+  background: var(--c-accent-fill);
+  color: var(--c-on-accent);
+}
+
+.segmente label:has(:focus-visible) {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 1px;
+}
+
+.pilule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface-2);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.pilulePlus {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+
+.champ {
+  height: 40px;
+  min-width: 0;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-surface-1);
+  color: var(--c-text);
+  font: inherit;
+  font-size: max(16px, 1em);
+}
+
+.champ::placeholder {
+  color: var(--c-text-muted);
+  opacity: 1;
+}
+
+.surface {
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.encart {
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-accent-fill);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  font-size: var(--fs-sm);
+}
+
+.squelette {
+  background: linear-gradient(90deg, var(--c-surface-2) 0 40%, var(--c-surface-1) 50%, var(--c-surface-2) 60% 100%) 0 0 / 200%
+    100%;
+  border-radius: var(--radius-md);
+  animation: reflet 1.4s linear infinite;
+}
+
+@keyframes reflet {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .squelette {
+    animation: none;
+  }
+}
+
+/* Pastille de catégorie : même dessin que le marqueur de la carte. */
+.pastille {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--cat);
+  color: var(--map-glyph);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pastille svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+@media (pointer: coarse) {
+  .bouton {
+    min-height: 44px;
+  }
+  .boutonIcone {
+    width: 44px;
+  }
+  .segmente label {
+    min-height: 44px;
+  }
+  .champ {
+    height: 44px;
+  }
+}

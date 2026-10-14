@@ -1,30 +1,90 @@
 import { Suspense } from "react";
+import { preload } from "react-dom";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FlecheRetour } from "@/components/Icones";
 import ZoneMapLoader from "@/components/ZoneMapLoader";
-import { chargerZone, etiquettesVoisines } from "@/lib/queries";
+import ZoneSquelette from "@/components/ZoneSquelette";
+import ui from "@/components/ui.module.css";
+import { chargerZone, etiquettesVoisines, resumeZone } from "@/lib/queries";
+import { OPEN_GRAPH } from "@/lib/site";
+import { formatNiveaux } from "@/lib/texte";
+import type { ZoneCarte } from "@/lib/types";
+import { genreZone } from "@/lib/zones";
+import styles from "./zone.module.css";
+
+export async function generateMetadata({ params }: PageProps<"/carte/[zone]">): Promise<Metadata> {
+  const { zone: slug } = await params;
+  const zone = await resumeZone(slug);
+  if (!zone) return { title: "Zone introuvable" };
+  const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
+  return {
+    title: zone.nom,
+    description: `Carte de ${zone.nom}${niveaux ? ` (niv. ${niveaux})` : ""} : donneurs de quêtes, maîtres de vol, monstres rares, minerais, herbes et trésors.`,
+    openGraph: { ...OPEN_GRAPH, images: [{ url: zone.carteUrl, width: 1002, height: 668, alt: `Carte de ${zone.nom}` }] },
+    alternates: { canonical: `/carte/${zone.slug}` },
+  };
+}
+
+function BarreZone({ zone, nbPoints }: { zone: ZoneCarte; nbPoints: number }) {
+  const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
+  const genre = genreZone(zone.slug);
+  const continent = zone.continentSlug ? `/#${zone.continentSlug}` : "/";
+  return (
+    <header className={styles.barreZone}>
+      <nav aria-label="Fil d'Ariane" className={styles.ariane}>
+        <ol>
+          <li>
+            <Link href="/">Zones</Link>
+          </li>
+          {zone.continentNom && (
+            <li>
+              <span aria-hidden="true">›</span>
+              <Link href={continent}>{zone.continentNom}</Link>
+            </li>
+          )}
+        </ol>
+      </nav>
+      <Link href={continent} className={styles.retour} aria-label="Toutes les zones">
+        <FlecheRetour />
+      </Link>
+      <h1>{zone.nom}</h1>
+      {niveaux && <span className={ui.pilule}>Niv. {niveaux}</span>}
+      {genre === "nouvelle" && <span className={`${ui.pilule} ${ui.pilulePlus}`}>Nouvelle zone</span>}
+      {genre === "ville" && <span className={ui.pilule}>Ville</span>}
+      <span className={styles.compteur}>
+        {nbPoints > 0 ? `${nbPoints.toLocaleString("fr-FR")} point${nbPoints > 1 ? "s" : ""}` : "aucun point pour l'instant"}
+      </span>
+    </header>
+  );
+}
+
+function BarreZoneSquelette() {
+  return (
+    <div className={styles.barreZone} aria-hidden="true">
+      <span className={`${ui.squelette} ${styles.titreSquelette}`} />
+    </div>
+  );
+}
 
 async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
   const [{ zone: slug }, recherche] = await Promise.all([params, searchParams]);
   const [donnees, etiquettes] = await Promise.all([chargerZone(slug), etiquettesVoisines(slug)]);
   if (!donnees) notFound();
+  const { zone } = donnees;
+  // La carte du jeu s'affiche d'abord : on la demande avant que Leaflet ne soit chargé.
+  if (!zone.monde || zone.monde.carteParDefaut) preload(zone.carteUrl, { as: "image", fetchPriority: "high" });
   const poi = Number(recherche.poi);
   const q = typeof recherche.q === "string" ? recherche.q : undefined;
   return (
     <>
-      <p style={{ fontSize: "0.9rem", marginBottom: 4 }}>
-        <Link href="/">← Toutes les zones</Link>
-      </p>
-      <h1 style={{ fontSize: "1.25rem", marginBottom: 12 }}>{donnees.zone.nom}</h1>
-      {donnees.pois.length === 0 && (
-        <p style={{ fontSize: "0.9rem", marginBottom: 12, color: "var(--muted)" }}>
-          Aucun point dans cette zone pour l&apos;instant : les nouvelles zones de Forever seront complétées par les joueurs.
-        </p>
-      )}
+      <BarreZone zone={zone} nbPoints={donnees.pois.length} />
       <ZoneMapLoader
         key={`${slug}-${q ?? ""}`}
         {...donnees}
         etiquettes={etiquettes}
+        genre={genreZone(slug)}
         poiInitial={Number.isInteger(poi) && poi > 0 ? poi : undefined}
         rechercheInitiale={q}
       />
@@ -34,8 +94,17 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
 
 export default function PageZone(props: PageProps<"/carte/[zone]">) {
   return (
-    <Suspense fallback={<p>Chargement de la zone…</p>}>
-      <CarteZone {...props} />
-    </Suspense>
+    <div className={styles.pageCarte} data-plein-ecran>
+      <Suspense
+        fallback={
+          <>
+            <BarreZoneSquelette />
+            <ZoneSquelette />
+          </>
+        }
+      >
+        <CarteZone {...props} />
+      </Suspense>
+    </div>
   );
 }

@@ -1,54 +1,227 @@
-import { Suspense } from "react";
+import { Suspense, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { rechercher } from "@/lib/queries";
-import styles from "../accueil.module.css";
+import FormulaireRecherche, { Exemples } from "@/components/FormulaireRecherche";
+import IconeCategorie from "@/components/IconeCategorie";
+import ui from "@/components/ui.module.css";
+import { TYPE_SINGULIER } from "@/lib/categories";
+import { listerZones, rechercher } from "@/lib/queries";
+import { formatNiveaux, normaliser } from "@/lib/texte";
+import type { ResultatRecherche } from "@/lib/types";
+import styles from "./recherche.module.css";
 
-export const metadata: Metadata = { title: "Recherche" };
+// Au-delà, sur mobile, les zones d'un même nom sont repliées.
+const ZONES_VISIBLES = 6;
 
-async function Resultats({ searchParams }: PageProps<"/recherche">) {
-  const { q } = await searchParams;
-  const texte = typeof q === "string" ? q.trim().slice(0, 80) : "";
+function texteRecherche(q: string | string[] | undefined) {
+  return typeof q === "string" ? q.trim().slice(0, 80) : "";
+}
+
+export async function generateMetadata({ searchParams }: PageProps<"/recherche">): Promise<Metadata> {
+  const texte = texteRecherche((await searchParams).q);
+  return { title: texte ? `« ${texte} » – Recherche` : "Recherche", robots: { index: false, follow: true } };
+}
+
+const nombre = (n: number) => n.toLocaleString("fr-FR");
+const pluriel = (n: number, mot: string) => `${nombre(n)} ${mot}${n > 1 ? "s" : ""}`;
+
+type Groupe = {
+  nom: string;
+  categorieSlug: string;
+  categorieNom: string;
+  icone: string;
+  couleur: string;
+  total: number;
+  zones: ResultatRecherche[];
+};
+
+// Une ligne par (nom, catégorie), avec la liste des zones où on le trouve, dans l'ordre de pertinence de la requête.
+function regrouper(resultats: ResultatRecherche[]) {
+  const groupes = new Map<string, Groupe>();
+  for (const r of resultats) {
+    const cle = `${r.nom}\u0000${r.categorieSlug}`;
+    let g = groupes.get(cle);
+    if (!g) {
+      g = { nom: r.nom, categorieSlug: r.categorieSlug, categorieNom: r.categorieNom, icone: r.icone, couleur: r.couleur, total: 0, zones: [] };
+      groupes.set(cle, g);
+    }
+    g.total += r.nombre;
+    g.zones.push(r);
+  }
+  for (const g of groupes.values()) {
+    g.zones.sort((a, b) => (a.zoneNiveauMin ?? Infinity) - (b.zoneNiveauMin ?? Infinity) || a.zoneNom.localeCompare(b.zoneNom, "fr"));
+  }
+  return [...groupes.values()];
+}
+
+function Pastille({ slug, icone, couleur }: { slug: string; icone: string; couleur: string }) {
+  return (
+    <span className={ui.pastille} style={{ "--cat": couleur } as CSSProperties} aria-hidden="true">
+      <IconeCategorie slug={slug} repli={icone} />
+    </span>
+  );
+}
+
+function LienZone({ g, z }: { g: Groupe; z: ResultatRecherche }) {
+  const niveaux = formatNiveaux(z.zoneNiveauMin, z.zoneNiveauMax);
+  const href = z.nombre === 1 ? `/carte/${z.zoneSlug}?poi=${z.premierId}` : `/carte/${z.zoneSlug}?q=${encodeURIComponent(g.nom)}`;
+  return (
+    <li>
+      <Link href={href} className={styles.lienZone} aria-label={`${g.nom} à ${z.zoneNom}, ${pluriel(z.nombre, "emplacement")}`}>
+        {z.zoneNom}
+        {niveaux && <span className={styles.niveaux}>{niveaux}</span>}
+        <span className={styles.nombre}>· {nombre(z.nombre)}</span>
+      </Link>
+    </li>
+  );
+}
+
+function GroupePoints({ g }: { g: Groupe }) {
+  const type = TYPE_SINGULIER[g.categorieSlug] ?? g.categorieNom;
+  const seul = g.zones.length === 1 && g.total === 1 ? g.zones[0] : null;
+  if (seul) {
+    return (
+      <li>
+        <Link href={`/carte/${seul.zoneSlug}?poi=${seul.premierId}`} className={styles.ligneSeule}>
+          <Pastille slug={g.categorieSlug} icone={g.icone} couleur={g.couleur} />
+          <span className={styles.texteLigne}>
+            <strong>{g.nom}</strong>
+            <span className={styles.details}>
+              {type} · {seul.zoneNom}
+            </span>
+          </span>
+          <span className={styles.chevron} aria-hidden="true">
+            ›
+          </span>
+        </Link>
+      </li>
+    );
+  }
+  const visibles = g.zones.slice(0, ZONES_VISIBLES);
+  const reste = g.zones.slice(ZONES_VISIBLES);
+  return (
+    <li className={styles.groupe}>
+      <div className={styles.teteGroupe}>
+        <Pastille slug={g.categorieSlug} icone={g.icone} couleur={g.couleur} />
+        <span className={styles.texteLigne}>
+          <strong>{g.nom}</strong>
+          <span className={styles.details}>
+            {type} · {pluriel(g.total, "emplacement")}
+            {g.zones.length > 1 ? ` dans ${nombre(g.zones.length)} zones` : ` à ${g.zones[0].zoneNom}`}
+          </span>
+        </span>
+      </div>
+      <ul className={styles.zonesGroupe}>
+        {visibles.map((z) => (
+          <LienZone key={z.zoneSlug} g={g} z={z} />
+        ))}
+        {reste.length > 0 && (
+          <li className={styles.reste}>
+            <details>
+              <summary>+{pluriel(reste.length, "zone")}</summary>
+              <ul className={styles.zonesGroupe}>
+                {reste.map((z) => (
+                  <LienZone key={z.zoneSlug} g={g} z={z} />
+                ))}
+              </ul>
+            </details>
+          </li>
+        )}
+      </ul>
+    </li>
+  );
+}
+
+function SansResultat({ texte }: { texte: string }) {
+  return (
+    <div className={styles.vide}>
+      <p className={styles.titreVide}>Rien trouvé pour « {texte} ».</p>
+      <p>Les points viennent de WoW Classic 1.12 : un PNJ propre à Forever n&apos;y est peut-être pas encore.</p>
+      <Exemples />
+      <p>
+        <Link href="/">Parcourir toutes les zones</Link>
+      </p>
+    </div>
+  );
+}
+
+async function ListeResultats({ texte }: { texte: string }) {
+  if (texte.length < 2) {
+    return (
+      <div className={styles.vide}>
+        <p>Tape au moins deux lettres.</p>
+        <Exemples />
+      </div>
+    );
+  }
+  const [toutesZones, resultats] = await Promise.all([listerZones(), rechercher(texte)]);
+  const t = normaliser(texte);
+  const zones = toutesZones.filter((z) => normaliser(z.nom).includes(t));
+  if (zones.length === 0 && resultats.length === 0) return <SansResultat texte={texte} />;
+  const groupes = regrouper(resultats);
+  const emplacements = groupes.reduce((n, g) => n + g.total, 0);
   return (
     <>
-      <form action="/recherche" className={styles.recherche}>
-        <input type="search" name="q" defaultValue={texte} aria-label="Rechercher" required minLength={2} />
-        <button type="submit">Rechercher</button>
-      </form>
+      {zones.length > 0 && (
+        <section className={styles.section} aria-labelledby="titre-zones">
+          <h2 id="titre-zones">Zones</h2>
+          <ul className={styles.liste}>
+            {zones.map((z) => {
+              const niveaux = formatNiveaux(z.niveauMin, z.niveauMax);
+              return (
+                <li key={z.slug}>
+                  <Link href={`/carte/${z.slug}`} className={styles.ligneZone}>
+                    <span className={styles.texteLigne}>
+                      <strong>{z.nom}</strong>
+                      {z.continentNom && <span className={styles.details}>{z.continentNom}</span>}
+                    </span>
+                    {niveaux && <span className={ui.pilule}>{niveaux}</span>}
+                    <span className={styles.chevron} aria-hidden="true">
+                      ›
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+      {groupes.length > 0 && (
+        <section className={styles.section} aria-labelledby="titre-points">
+          <h2 id="titre-points">Points</h2>
+          <p className={styles.compteur}>
+            {resultats.length >= 200
+              ? "200 premiers résultats : précise ta recherche."
+              : `${pluriel(groupes.length, "nom")}, ${pluriel(emplacements, "emplacement")}`}
+          </p>
+          <ul className={styles.liste}>
+            {groupes.map((g) => (
+              <GroupePoints key={`${g.nom}-${g.categorieSlug}`} g={g} />
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
+
+async function Resultats({ searchParams }: PageProps<"/recherche">) {
+  const texte = texteRecherche((await searchParams).q);
+  return (
+    <>
+      <FormulaireRecherche key={texte} id="recherche-page" valeur={texte} />
       <ListeResultats texte={texte} />
     </>
   );
 }
 
-async function ListeResultats({ texte }: { texte: string }) {
-  if (texte.length < 2) return <p>Tape au moins deux lettres.</p>;
-  const resultats = await rechercher(texte);
-  if (resultats.length === 0) return <p>Aucun résultat pour « {texte} ».</p>;
+function SqueletteResultats() {
   return (
     <>
-      <p className={styles.note}>
-        {resultats.length >= 200 ? "200 premiers résultats" : `${resultats.length} résultat${resultats.length > 1 ? "s" : ""}`} pour «{" "}
-        {texte} ».
-      </p>
-      <ul style={{ listStyle: "none", display: "grid", gap: 6 }}>
-        {resultats.map((r) => (
-          <li key={`${r.zoneSlug}-${r.nom}-${r.categorieNom}`} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span
-              aria-hidden
-              style={{ background: r.couleur, borderRadius: "50%", width: 22, height: 22, display: "inline-grid", placeItems: "center", fontSize: 12, flex: "none" }}
-            >
-              {r.icone}
-            </span>
-            <span>
-              <Link href={r.nombre === 1 ? `/carte/${r.zoneSlug}?poi=${r.premierId}` : `/carte/${r.zoneSlug}?q=${encodeURIComponent(r.nom)}`}>
-                {r.nom}
-              </Link>{" "}
-              <small className={styles.note}>
-                {r.zoneNom} · {r.categorieNom}
-                {r.nombre > 1 ? ` · ${r.nombre} emplacements` : ""}
-              </small>
-            </span>
-          </li>
+      <FormulaireRecherche id="recherche-page" />
+      <ul className={styles.squelette} aria-hidden="true">
+        {Array.from({ length: 6 }, (_, i) => (
+          <li key={i} className={ui.squelette} />
         ))}
       </ul>
     </>
@@ -57,11 +230,11 @@ async function ListeResultats({ texte }: { texte: string }) {
 
 export default function PageRecherche(props: PageProps<"/recherche">) {
   return (
-    <section style={{ display: "grid", gap: 16 }}>
+    <div className={styles.page} data-page="recherche">
       <h1>Recherche</h1>
-      <Suspense fallback={<p>Recherche…</p>}>
+      <Suspense fallback={<SqueletteResultats />}>
         <Resultats {...props} />
       </Suspense>
-    </section>
+    </div>
   );
 }

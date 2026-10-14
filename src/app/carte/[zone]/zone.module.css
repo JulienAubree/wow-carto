@@ -1,0 +1,98 @@
+.pageCarte {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Barre de zone : fil d'Ariane, nom, niveaux et nombre de points. */
+.barreZone {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: var(--zonebar-h);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.barreZone h1 {
+  font-size: var(--fs-xl);
+}
+
+.ariane ol {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  list-style: none;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.ariane li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ariane a {
+  color: inherit;
+}
+
+.ariane a:hover {
+  color: var(--c-accent);
+}
+
+.retour {
+  display: none;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: calc(-1 * var(--space-2));
+  border-radius: var(--radius-md);
+  color: var(--c-text);
+}
+
+.retour:hover {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.compteur {
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.titreSquelette {
+  width: min(320px, 60%);
+  height: 24px;
+}
+
+@media (max-width: 720px) {
+  .barreZone {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    height: var(--zonebar-h);
+    padding: 0 var(--space-3);
+  }
+  .ariane,
+  .compteur {
+    display: none;
+  }
+  .retour {
+    display: grid;
+  }
+  .barreZone h1 {
+    min-width: 0;
+    font-size: var(--fs-lg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .barreZone > span {
+    flex: none;
+  }
+}

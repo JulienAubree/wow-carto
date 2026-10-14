@@ -1,6 +1,6 @@
 # Notices des sources tierces
 
-Ce dépôt redistribue des données dérivées du projet ci-dessous (voir la section « Sources des cartes et des points » du README).
+Ce dépôt redistribue des données dérivées du projet ci-dessous (voir la section « Sources des cartes et des points » du README), ainsi qu'une police de caractères.
 
 ## pfQuest
 
@@ -29,6 +29,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Alegreya SC
+
+Police des titres (`src/app/fonts/alegreya-sc-700.woff2` : graisse 700, sous-ensemble latin, tiré du paquet npm `@fontsource/alegreya-sc` 5.3.0). Copyright 2011 The Alegreya Project Authors (https://github.com/huertatipografica/Alegreya). Publiée sous licence SIL Open Font License 1.1 : texte complet dans `src/app/fonts/OFL.txt`.
 
 ## Fonds de carte
 

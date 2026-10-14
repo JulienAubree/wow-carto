@@ -1,179 +1,936 @@
+/* Page de zone : panneau de filtres à gauche, carte à droite ; sur mobile, la carte occupe tout
+   et le panneau est tiré du bas. */
+
 .cadre {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 270px 1fr;
-  height: calc(100vh - 120px);
-  min-height: 420px;
-  gap: 12px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
 }
 
+.cadre[data-vide] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Panneau */
 .filtres {
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
-  font-size: 0.92rem;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  font-size: var(--fs-sm);
 }
 
-.recherche {
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent);
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
+.poignee {
+  display: none;
 }
 
-.factions {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 4px;
+.rechercheZone {
+  display: grid;
+  gap: var(--space-2);
 }
 
-.factions button,
-.titreCategories button {
-  flex: 1;
-  padding: 4px 6px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 25%, transparent);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 0.85rem;
+.rechercheZone input {
+  width: 100%;
+}
+
+.statut {
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.statut a {
+  color: var(--c-accent);
+  font-weight: 600;
+}
+
+.boutonLien {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
-.factions button[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #1d1a16;
+.resultats {
+  list-style: none;
+  display: grid;
+  gap: 2px;
 }
 
-.titreCategories {
+.resultats button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.resultats button:hover {
+  background: var(--c-surface-2);
+}
+
+.nomResultat {
+  display: grid;
+  min-width: 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.nomResultat small {
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.coordsResultat {
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.factions label {
+  font-size: var(--fs-sm);
+}
+
+.pointFaction {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-alliance);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.15);
+}
+
+.pointFaction[data-faction="horde"] {
+  background: var(--c-horde);
+}
+
+.etiquetteSection {
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.categories {
+  min-width: 0;
+  border: 0;
+}
+
+/* Légende flottante : elle reste le nom du groupe, les boutons Tout et Rien se placent à côté. */
+.categories legend {
+  float: left;
+  padding: 0;
+  line-height: 32px;
+}
+
+.toutRien {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.lignesCategories {
+  clear: both;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+
+.ligneCategorie {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--duree);
 }
 
-.titreCategories h2 {
-  flex: 1;
+.ligneCategorie:hover {
+  background: var(--c-surface-2);
 }
 
-.titreCategories button {
+.ligneCategorie input {
   flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 
 .nomCategorie {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.vide {
-  opacity: 0.45;
+.compteur {
+  color: var(--c-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.filtres h2 {
-  font-size: 1rem;
-  margin: 0 0 4px;
+.absentes {
+  margin-top: var(--space-2);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
 }
 
-.filtres label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.absentes summary {
+  padding: var(--space-1);
   cursor: pointer;
 }
 
-.pastille {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  font-size: 12px;
+.absentes ul {
+  padding-left: var(--space-5);
 }
 
-.coords {
-  margin-top: auto;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.85rem;
-  opacity: 0.8;
+.voisines ul {
+  list-style: none;
+  display: grid;
+  gap: 1px;
+  margin-top: var(--space-2);
+}
+
+.voisines a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.voisines a:hover {
+  background: var(--c-surface-2);
+  text-decoration: underline;
+}
+
+/* Carte */
+.zoneCarte {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
 }
 
 .carte {
-  border-radius: 8px;
-  background: #1b1f24;
+  position: absolute;
+  inset: 0;
 }
 
-.marqueur span {
+.zoneCarte .carte:global(.leaflet-container),
+.carteSquelette {
+  background: var(--map-sea);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+/* Carte du jeu seule : fond parchemin, sans cadre noir en thème clair. */
+.zoneCarte .carte[data-vue="parchemin"] {
+  background: var(--c-surface-2);
+}
+
+.zoneCarte .carte :global(.leaflet-bar) {
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-overlay);
+  box-shadow: var(--shadow-2);
+}
+
+.zoneCarte .carte :global(.leaflet-bar) a,
+.zoneCarte .carte :global(.leaflet-bar) button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--c-text);
+  font: 600 20px/1 var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--duree);
+}
+
+.zoneCarte .carte :global(.leaflet-bar) a:last-child,
+.zoneCarte .carte :global(.leaflet-bar) button:last-child {
+  border-bottom: 0;
+}
+
+.zoneCarte .carte :global(.leaflet-bar) a:hover,
+.zoneCarte .carte :global(.leaflet-bar) button:hover {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.zoneCarte .carte :global(.leaflet-bar) a:global(.leaflet-disabled) {
+  background: transparent;
+  color: var(--c-text-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.zoneCarte .carte :global(.leaflet-control-attribution) {
+  padding: 0 6px;
+  border-top-left-radius: var(--radius-sm);
+  background: var(--c-overlay);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.zoneCarte .carte :global(.leaflet-control-attribution) a {
+  color: var(--c-accent);
+}
+
+/* Fiches (popups) */
+.zoneCarte .carte :global(.leaflet-popup-content-wrapper),
+.zoneCarte .carte :global(.leaflet-popup-tip) {
+  background: var(--c-surface-1);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-2);
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content-wrapper) {
+  padding: 0;
+  border-radius: var(--radius-lg);
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) {
+  margin: var(--space-3) var(--space-4) var(--space-4);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content):focus {
+  outline: none;
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) p {
+  margin: 0;
+}
+
+.zoneCarte .carte:global(.leaflet-container) a:global(.leaflet-popup-close-button) {
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  color: var(--c-text-muted);
+  font: 400 22px/1 var(--font-body);
+}
+
+.zoneCarte .carte:global(.leaflet-container) a:global(.leaflet-popup-close-button):hover {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.teteFiche {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-6);
+}
+
+.teteFiche h3 {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  letter-spacing: 0.01em;
+}
+
+.puces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  list-style: none;
+}
+
+.faction::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-alliance);
+}
+
+.faction[data-faction="horde"]::before {
+  background: var(--c-horde);
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) .sousTitre {
+  margin-top: var(--space-2);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quetes {
+  max-height: 168px;
+  overflow-y: auto;
+  margin-top: var(--space-1);
+  padding-left: 18px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.actions code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions button.copie,
+.actions button.copie:hover {
+  border-color: transparent;
+  background: var(--c-accent-fill);
+  color: var(--c-on-accent);
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) .avertissement {
+  margin-top: var(--space-3);
+  font-style: italic;
+  cursor: help;
+}
+
+.zoneCarte .carte :global(.leaflet-popup-content) .coordsFiche {
+  padding-right: var(--space-6);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Infobulles (survol d'un point ou d'une grappe) */
+.infobulle:global(.leaflet-tooltip) {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--map-chip);
+  box-shadow: none;
+  color: var(--map-label);
+  font: 600 13px/1.3 var(--font-body);
+}
+
+.infobulle:global(.leaflet-tooltip-top)::before {
+  border-top-color: var(--map-chip);
+}
+
+/* Marqueurs */
+.marqueur {
+  border-radius: 50%;
+}
+
+.marqueur > span {
   display: grid;
   place-items: center;
   width: 24px;
   height: 24px;
+  border: 2px solid var(--map-ring);
   border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  background: var(--cat);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  color: var(--map-glyph);
   font-size: 13px;
+  line-height: 1;
+  transition:
+    transform var(--duree),
+    box-shadow var(--duree);
 }
 
-@media (max-width: 720px) {
-  .cadre {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    height: calc(100vh - 100px);
-  }
-  .filtres {
-    max-height: 38vh;
-  }
-  .coords {
-    display: none;
+.marqueur svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.marqueur:hover > span,
+.marqueur:focus-visible > span {
+  transform: scale(1.15);
+}
+
+.marqueur:focus-visible,
+.groupe:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px #1a140c;
+}
+
+.marqueur.actif > span {
+  transform: scale(1.3);
+  box-shadow:
+    0 0 0 3px var(--c-accent-fill),
+    0 0 12px var(--c-accent-fill);
+  animation: pulsation 0.9s ease-in-out 2;
+}
+
+@keyframes pulsation {
+  50% {
+    box-shadow:
+      0 0 0 5px var(--c-accent-fill),
+      0 0 22px var(--c-accent-fill);
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .marqueur.actif > span,
+  .roseSquelette {
+    animation: none;
+  }
+}
+
+/* Grappes */
 .groupe {
-  display: grid;
-  place-items: center;
+  border-radius: 50%;
 }
 
-.groupe span {
+.nombre {
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
+  border: 2px solid var(--c-accent-fill);
   border-radius: 50%;
-  background: rgba(29, 26, 22, 0.78);
-  border: 2px solid #e0b25c;
-  color: #f6f3ec;
-  font-size: 12px;
-  font-weight: 700;
+  background: var(--map-cluster-bg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  color: var(--map-cluster-text);
+  font: 700 12px/1 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  transition:
+    transform var(--duree),
+    border-color var(--duree);
 }
 
-/* Vue terrain : le fond prolonge les tuiles hors des terres. */
-.carte:global(.leaflet-container) {
-  background: #0c141c;
+.groupe:hover .nombre,
+.groupe:focus-visible .nombre {
+  border-color: var(--map-ring);
+  transform: scale(1.08);
 }
 
-.etiquette a {
+/* Étiquettes des zones voisines : toponymes posés sur l'imagerie, sans boîte. */
+.zoneCarte .etiquette a {
   position: absolute;
   transform: translate(-50%, -50%);
   display: grid;
   justify-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(20, 18, 14, 0.72);
-  color: #f6f3ec;
-  font-size: 13px;
+  width: max-content;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--map-label);
+  font-family: var(--font-display);
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-align: center;
   text-decoration: none;
+  text-shadow:
+    0 0 2px #000,
+    0 0 6px rgb(0 0 0 / 0.85);
   white-space: nowrap;
 }
 
-.etiquette a:hover {
-  background: rgba(20, 18, 14, 0.9);
+.zoneCarte .etiquette a:hover,
+.zoneCarte .etiquette a:focus-visible {
+  background: var(--map-chip);
+  color: var(--map-label);
 }
 
-.etiquette small {
+.zoneCarte .etiquette a:hover .nomEtiquette {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.zoneCarte .etiquette a:hover .nomEtiquette::after {
+  content: " →";
+}
+
+.nomEtiquette[data-fleche]::before {
+  content: attr(data-fleche) " ";
+}
+
+.zoneCarte .etiquette small {
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 600;
-  opacity: 0.8;
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+
+/* Contrôles React posés sur la carte */
+.choixVue {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  border-color: var(--c-border);
+  background: var(--c-overlay);
+  box-shadow: var(--shadow-2);
+}
+
+.coords {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  display: none;
+  min-width: 11ch;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--map-chip);
+  color: var(--map-label);
+  font: 12px/1.5 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .coords {
+    display: block;
+  }
+}
+
+.encartVide {
+  position: absolute;
+  top: var(--space-4);
+  left: 50%;
+  z-index: 1000;
+  transform: translateX(-50%);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  width: max-content;
+  max-width: min(440px, calc(100% - 32px));
+  padding: var(--space-4);
+  box-shadow: var(--shadow-2);
+}
+
+.encartVide h2 {
+  font-size: var(--fs-lg);
+}
+
+.voisinesEncart {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.niveauxEncart {
+  color: var(--c-text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Squelette de chargement */
+.squeletteChamp {
+  height: 40px;
+}
+
+.squeletteSegments {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
+}
+
+.squeletteSegments span {
+  height: 32px;
+}
+
+.squeletteLignes {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.squeletteLignes li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.squeletteLignes .squeletteRond {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.squeletteBarre {
+  width: 62%;
+  height: 12px;
+}
+
+.squeletteLignes li:nth-child(3n + 1) .squeletteBarre {
+  width: 74%;
+}
+
+.squeletteLignes li:nth-child(4n) .squeletteBarre {
+  width: 50%;
+}
+
+.squeletteLignes li:nth-child(5n + 2) .squeletteBarre {
+  width: 80%;
+}
+
+.carteSquelette {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  color: var(--map-label);
+}
+
+.roseSquelette {
+  color: var(--c-accent-fill);
+  animation: rose 1.6s ease-in-out infinite;
+}
+
+@keyframes rose {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+}
+
+/* Tablette */
+@media (min-width: 721px) and (max-width: 1099px) {
+  .cadre {
+    grid-template-columns: minmax(240px, 26vw) minmax(0, 1fr);
+  }
+}
+
+/* Mobile : carte plein cadre, panneau tiré du bas (bottom sheet). */
+@media (max-width: 720px) {
+  .cadre {
+    position: relative;
+    display: block;
+    padding: 0;
+  }
+
+  .zoneCarte {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .filtres {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    gap: var(--space-2);
+    max-height: 75dvh;
+    padding: 0 var(--space-3) max(var(--space-2), env(safe-area-inset-bottom));
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.35);
+    overscroll-behavior: contain;
+  }
+
+  .poignee {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 44px;
+    padding: 6px 0 4px;
+    border: 0;
+    background: var(--c-surface-1);
+    color: var(--c-text);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .barrePoignee {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--c-border-strong);
+  }
+
+  .rechercheZone {
+    gap: var(--space-1);
+  }
+
+  .corps,
+  .squeletteSegments,
+  .squeletteLignes {
+    display: none;
+  }
+
+  .filtres[data-ouvert] .corps {
+    display: flex;
+    padding-bottom: var(--space-3);
+  }
+
+  .squeletteChamp {
+    margin-top: var(--space-6);
+  }
+
+  .cadre:not([data-vide]) .carte :global(.leaflet-bottom) {
+    bottom: var(--sheet-peek);
+  }
+
+  .cadre:not([data-vide]) .coords {
+    bottom: calc(var(--sheet-peek) + 10px);
+  }
+
+  .encartVide {
+    top: 58px;
+  }
+
+  .zoneCarte .etiquette a {
+    max-width: 40vw;
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  .zoneCarte .etiquette small {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) and (pointer: coarse) {
+  /* Le pincement suffit : pas de boutons de zoom. */
+  .zoneCarte .carte :global(.leaflet-control-zoom) {
+    display: none;
+  }
+
+  .lignesCategories {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ligneCategorie {
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+  }
+
+  .ligneCategorie:has(:checked) {
+    border-color: var(--c-accent-fill);
+    background: color-mix(in srgb, var(--c-accent-fill) 14%, transparent);
+  }
+
+  .ligneCategorie:has(:focus-visible) {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 1px;
+  }
+
+  /* La case reste focusable et couvre toute la puce. */
+  .ligneCategorie input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .nomCategorie {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    line-height: 1.2;
+  }
+}
+
+@media (pointer: coarse) {
+  .ligneCategorie,
+  .voisines a,
+  .resultats button {
+    min-height: 44px;
+  }
+
+  .absentes summary {
+    padding-block: 13px;
+  }
+
+  /* Cible de 44 px sans agrandir la ligne de statut (le panneau fermé reste bas). */
+  .boutonLien {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-block: -12px;
+    padding-inline: var(--space-1);
+  }
+
+  .zoneCarte .carte :global(.leaflet-bar) a,
+  .zoneCarte .carte :global(.leaflet-bar) button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .zoneCarte .carte:global(.leaflet-container) a:global(.leaflet-popup-close-button) {
+    top: 2px;
+    right: 2px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .teteFiche {
+    padding-right: 40px;
+  }
 }
