@@ -53,6 +53,15 @@ export async function resumeZone(slug: string) {
   return zone ?? null;
 }
 
+// Nom d'un point publié de la zone (titre de la page ouverte avec ?poi=).
+export async function nomPoi(id: number, zoneId: number) {
+  const [poi] = await db
+    .select({ nom: schema.pois.nom })
+    .from(schema.pois)
+    .where(and(eq(schema.pois.id, id), eq(schema.pois.zoneId, zoneId), eq(schema.pois.statut, "publie")));
+  return poi?.nom ?? null;
+}
+
 export async function chargerZone(
   slug: string,
 ): Promise<{ zone: ZoneCarte; categories: CategorieCarte[]; pois: PoiCarte[] } | null> {

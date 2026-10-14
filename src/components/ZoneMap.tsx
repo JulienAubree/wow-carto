@@ -455,28 +455,55 @@ export default function ZoneMap({
     const borner = () => {
       if (!placees.length || map.getPane("etiquettes")?.style.display === "none") return;
       const { x: largeur, y: hauteur } = map.getSize();
-      // Marges : contrôles en haut, sources en bas, panneau tiré du bas sur mobile.
+      // Marges : contrôles en haut et à gauche, sources en bas, panneau tiré du bas sur mobile.
       const haut = 52;
-      const gauche = 52;
+      const gauche = 56;
+      const droite = 8;
       const bas = 30 + (estMobile() && !vide ? 120 : 0);
-      for (const { m, origine } of placees) {
-        const lien = m.getElement()?.querySelector<HTMLElement>("a");
+      const borne = (v: number, min: number, max: number) => Math.min(Math.max(v, min), Math.max(max, min));
+      const mesures = placees.flatMap(({ m, origine }) => {
+        const el = m.getElement();
+        const lien = el?.querySelector<HTMLElement>("a");
         const nom = lien?.firstElementChild as HTMLElement | null;
-        if (!lien || !nom) continue;
+        if (!el || !lien || !nom) return [];
         const p = map.latLngToContainerPoint(origine);
-        const dx = lien.offsetWidth / 2 + 8;
-        const dy = lien.offsetHeight / 2 + 4;
-        const x = Math.min(Math.max(p.x, Math.max(dx, gauche)), Math.max(largeur - dx, gauche));
-        const y = Math.min(Math.max(p.y, haut + dy), Math.max(hauteur - bas - dy, haut + dy));
-        const ecart = Math.hypot(p.x - x, p.y - y);
-        if (ecart < 1) {
-          delete nom.dataset.fleche;
-          m.setLatLng(origine);
-        } else {
-          const angle = Math.atan2(p.y - y, p.x - x);
-          nom.dataset.fleche = FLECHES[(((Math.round(angle / (Math.PI / 4)) % 8) + 8) % 8)];
-          m.setLatLng(map.containerPointToLatLng([x, y]));
+        // Deux passes : la flèche ajoutée à une étiquette ramenée au bord change sa largeur.
+        let mesure = { x: p.x, y: p.y, dx: 0, dy: 0, xMin: 0, xMax: 0, yMin: 0, yMax: 0, ecart: 0 };
+        for (let passe = 0; passe < 2; passe++) {
+          const dx = lien.offsetWidth / 2 + 4;
+          const dy = lien.offsetHeight / 2 + 2;
+          const limites = { xMin: gauche + dx, xMax: largeur - droite - dx, yMin: haut + dy, yMax: hauteur - bas - dy };
+          const x = borne(p.x, limites.xMin, limites.xMax);
+          const y = borne(p.y, limites.yMin, limites.yMax);
+          mesure = { x, y, dx, dy, ...limites, ecart: Math.hypot(p.x - x, p.y - y) };
+          if (mesure.ecart < 1) delete nom.dataset.fleche;
+          else {
+            const angle = Math.atan2(p.y - y, p.x - x);
+            nom.dataset.fleche = FLECHES[(((Math.round(angle / (Math.PI / 4)) % 8) + 8) % 8)];
+          }
         }
+        return [{ m, origine, el, p, ...mesure }];
+      });
+      // Les étiquettes à leur vraie place d'abord ; celles ramenées au bord se décalent pour ne pas se chevaucher.
+      mesures.sort((a, b) => a.ecart - b.ecart);
+      const boites: { x: number; y: number; dx: number; dy: number }[] = [];
+      const libre = (x: number, y: number, dx: number, dy: number) =>
+        boites.every((b) => Math.abs(b.x - x) >= b.dx + dx || Math.abs(b.y - y) >= b.dy + dy);
+      for (const e of mesures) {
+        let place: [number, number] | null = null;
+        for (let k = 0; k <= 6 && !place; k++) {
+          const pas = Math.ceil(k / 2) * (k % 2 ? 1 : -1);
+          const candidats: [number, number][] = [
+            [e.x, borne(e.y + pas * 2 * e.dy, e.yMin, e.yMax)],
+            [borne(e.x + pas * e.dx, e.xMin, e.xMax), e.y],
+          ];
+          place = candidats.find(([x, y]) => libre(x, y, e.dx, e.dy)) ?? null;
+        }
+        e.el.classList.toggle(styles.masquee, !place);
+        if (!place) continue;
+        const [x, y] = place;
+        boites.push({ x, y, dx: e.dx, dy: e.dy });
+        e.m.setLatLng(Math.hypot(e.p.x - x, e.p.y - y) < 1 ? e.origine : map.containerPointToLatLng([x, y]));
       }
     };
     bornerEtiquettes.current = borner;
@@ -485,7 +512,7 @@ export default function ZoneMap({
     const groupe = L.markerClusterGroup({
       // Grappes larges sur la zone entière, plus serrées en zoomant ; au zoom maximal, les points
       // superposés s'écartent en étoile (markercluster travaille sur le zoom arrondi).
-      maxClusterRadius: (z) => (z <= zInit ? 36 : z < zMax ? 20 : 12),
+      maxClusterRadius: (z) => (z <= zInit ? 36 : z < zMax ? 20 : 16),
       spiderfyOnMaxZoom: true,
       spiderLegPolylineOptions: { weight: 1.5, color: "#fbf3e0", opacity: 0.7 },
       showCoverageOnHover: false,

@@ -209,8 +209,9 @@
   }
 }
 
+/* 40 px plutôt que 44 : la ligne occupe toute la largeur, et l'accueil reste moins long sur téléphone. */
 @media (pointer: coarse) {
   .ligneZone {
-    min-height: 44px;
+    min-height: 40px;
   }
 }

@@ -26,7 +26,7 @@ export default function FormulaireRecherche({
           type="search"
           name="q"
           defaultValue={valeur}
-          placeholder="Feuillargent, Doras, Filon de thorium…"
+          placeholder="Feuillargent, Doras, thorium…"
           minLength={2}
           required
           enterKeyHint="search"

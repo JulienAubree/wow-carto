@@ -7,20 +7,27 @@ import { FlecheRetour } from "@/components/Icones";
 import ZoneMapLoader from "@/components/ZoneMapLoader";
 import ZoneSquelette from "@/components/ZoneSquelette";
 import ui from "@/components/ui.module.css";
-import { chargerZone, etiquettesVoisines, resumeZone } from "@/lib/queries";
+import { chargerZone, etiquettesVoisines, nomPoi, resumeZone } from "@/lib/queries";
 import { OPEN_GRAPH } from "@/lib/site";
 import { formatNiveaux } from "@/lib/texte";
 import type { ZoneCarte } from "@/lib/types";
 import { genreZone } from "@/lib/zones";
 import styles from "./zone.module.css";
 
-export async function generateMetadata({ params }: PageProps<"/carte/[zone]">): Promise<Metadata> {
-  const { zone: slug } = await params;
+function idPoi(valeur: string | string[] | undefined) {
+  const id = Number(valeur);
+  return Number.isInteger(id) && id > 0 && id <= 2 ** 31 - 1 ? id : undefined;
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps<"/carte/[zone]">): Promise<Metadata> {
+  const [{ zone: slug }, { poi }] = await Promise.all([params, searchParams]);
   const zone = await resumeZone(slug);
   if (!zone) return { title: "Zone introuvable" };
   const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
+  const id = idPoi(poi);
+  const point = id ? await nomPoi(id, zone.id) : null;
   return {
-    title: zone.nom,
+    title: point ? `${point} · ${zone.nom}` : zone.nom,
     description: `Carte de ${zone.nom}${niveaux ? ` (niv. ${niveaux})` : ""} : donneurs de quêtes, maîtres de vol, monstres rares, minerais, herbes et trésors.`,
     openGraph: { ...OPEN_GRAPH, images: [{ url: zone.carteUrl, width: 1002, height: 668, alt: `Carte de ${zone.nom}` }] },
     alternates: { canonical: `/carte/${zone.slug}` },
@@ -75,7 +82,6 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
   const { zone } = donnees;
   // La carte du jeu s'affiche d'abord : on la demande avant que Leaflet ne soit chargé.
   if (!zone.monde || zone.monde.carteParDefaut) preload(zone.carteUrl, { as: "image", fetchPriority: "high" });
-  const poi = Number(recherche.poi);
   const q = typeof recherche.q === "string" ? recherche.q : undefined;
   return (
     <>
@@ -85,7 +91,7 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
         {...donnees}
         etiquettes={etiquettes}
         genre={genreZone(slug)}
-        poiInitial={Number.isInteger(poi) && poi > 0 ? poi : undefined}
+        poiInitial={idPoi(recherche.poi)}
         rechercheInitiale={q}
       />
     </>
