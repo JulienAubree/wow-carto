@@ -21,7 +21,7 @@ const alegreyaSC = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.URL_SITE || "http://localhost:3000"),
+  metadataBase: new URL(process.env.URL_SITE || "https://wowforever.julien-aubree.space"),
   title: { default: NOM_SITE, template: `%s · ${NOM_SITE}` },
   description:
     "Carte interactive et communautaire de World of Warcraft: Forever : maîtres de vol et entrées de donjons tirés des fichiers du jeu, en attendant les ajouts des joueurs.",
