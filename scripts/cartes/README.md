@@ -64,4 +64,14 @@ python3 -I scripts/donnees/extraire_client.py ~/extraction-cartes/tables ~/extra
 
 Au déploiement suivant, `npm run db:import-classic` voit que le fichier a changé et synchronise les points importés sans changer leur identifiant, pour que les liens `?poi=` partagés restent bons : chaque point est reconnu par sa table et son identifiant dans le jeu, mis à jour sur place, ajouté s'il est nouveau, supprimé s'il a disparu du fichier. Les points que la communauté a modifiés ou référencés (version > 1, contribution, signalement, confirmation) ne sont pas touchés, et un point masqué par la modération le reste. `-- --remplacer` force cette synchronisation.
 
+## 4. Contours des zones sur les cartes des continents
+
+L'accueil sur ordinateur montre les cartes de Kalimdor et des Royaumes de l'Est, où l'on clique sur une zone ; la forme de chaque zone vient de `data/forever/contours.json` (en pixels des cartes de continent, 1002 x 668), écrit par `contours.py` (Python 3, bibliothèque standard seulement). Avec les tables et les zones des parcelles de l'étape 1, chaque parcelle va à la zone du site que le jeu lui donne, comme les points de l'étape 3 :
+
+```bash
+python3 -I scripts/cartes/contours.py ~/extraction-cartes/tables ~/extraction-cartes/aires/aires.json
+```
+
+Sans argument, le script donne des formes approchées d'après les seuls rectangles de `data/forever/cartes.json` (chaque zone prend la part de son rectangle la plus proche de son centre, les villes leur rectangle entier) : c'est ce que contient le fichier tant que `aires.json` n'a pas été relevé. Le champ `"source"` du fichier dit lequel des deux l'a produit (`"aires"` ou `"rectangles"`). Une zone sans forme sur la carte de son continent (polygones vides) est proposée en lien sous les cartes.
+
 Les slugs des zones doivent rester alignés entre `scripts/cartes/forever.py` et `scripts/donnees/zones.ts`.

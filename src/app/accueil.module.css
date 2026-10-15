@@ -11,6 +11,13 @@
   max-width: 760px;
 }
 
+.titre,
+.recherche {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .entetePage h1 {
   font-size: var(--fs-2xl);
 }
@@ -19,6 +26,49 @@
   font-size: var(--fs-md);
   color: var(--c-text-muted);
   max-width: 60ch;
+}
+
+/* Cartes des continents : seulement sur ordinateur (voir la requête plus bas). */
+.cartes {
+  display: none;
+}
+
+/* Liens vers les zones qui ne sont pas sur les cartes, au bout de la rangée : le bouton de la liste. */
+.groupeHorsCartes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--fs-sm);
+}
+
+.groupeHorsCartes h2 {
+  color: var(--c-text-muted);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.groupeHorsCartes ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  list-style: none;
+}
+
+.groupeHorsCartes li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.groupeHorsCartes a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-weight: 600;
 }
 
 /* Ancres des continents, collées sous l'en-tête (mobile seulement). */
@@ -164,6 +214,44 @@
 @media (min-width: 1100px) {
   .continents {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 260px;
+  }
+  .entetePage {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+    align-items: end;
+    gap: var(--space-3) var(--space-6);
+    max-width: none;
+  }
+  .accroche {
+    max-width: 75ch;
+  }
+}
+
+/* Ordinateur avec souris : les deux cartes côte à côte, entières dans la fenêtre (la hauteur réservée couvre
+   l'en-tête du site, le titre et la recherche) ; la liste des zones se déplie sous la rangée des autres liens. */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .page {
+    gap: var(--space-4);
+  }
+  .cartes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+    width: 100%;
+    max-width: calc((100dvh - 250px) * 3 + var(--space-5));
+    margin-inline: auto;
+  }
+  .carteSquelette {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+  }
+  .listeSquelette {
+    display: none;
+  }
+  .continent img {
+    display: none;
   }
 }
 
