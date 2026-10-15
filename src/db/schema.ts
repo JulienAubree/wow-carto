@@ -13,7 +13,9 @@ import {
 
 // Rôles : un membre « confirmé » publie sans passer par la modération.
 export const roleEnum = pgEnum("role", ["membre", "confirme", "moderateur", "admin"]);
-export const poiStatusEnum = pgEnum("poi_status", ["publie", "masque"]);
+// « a_verifier » : point repris d'une source qui n'est pas Forever (Classic), invisible sur le site tant
+// qu'un relevé en jeu ne l'a pas confirmé.
+export const poiStatusEnum = pgEnum("poi_status", ["publie", "masque", "a_verifier"]);
 export const contributionTypeEnum = pgEnum("contribution_type", ["creation", "modification", "suppression"]);
 export const contributionStatusEnum = pgEnum("contribution_status", ["en_attente", "acceptee", "refusee", "conflit"]);
 export const reportStatusEnum = pgEnum("report_status", ["ouvert", "traite", "rejete"]);
@@ -65,12 +67,46 @@ export const categories = pgTable("categories", {
   ordre: integer("ordre").notNull().default(0),
 });
 
+// Un PNJ ou un monstre, identifié comme dans le jeu (identifiant de la créature). Ses positions sont
+// des points (`pois.pnj_id`) ; ses noms viennent des relevés en jeu, sinon de Classic.
+export const pnj = pgTable("pnj", {
+  id: integer("id").primaryKey(),
+  nom: text("nom").notNull(),
+  // Sous-titre affiché sous le nom en jeu (« Fournitures générales »).
+  titre: text("titre"),
+  // Faction : alliance, horde ou neutre.
+  faction: text("faction"),
+  niveauMin: integer("niveau_min"),
+  niveauMax: integer("niveau_max"),
+  // normal, elite, rare, rareelite, worldboss.
+  classification: text("classification"),
+  // D'où viennent ces informations : « releves » (vu en jeu dans Forever) ou « classic ».
+  source: text("source").notNull(),
+  donnees: jsonb("donnees").$type<Record<string, unknown>>().notNull().default({}),
+  ...timestamps,
+});
+
+// Une quête, identifiée comme dans le jeu. Remplie par les relevés en jeu.
+export const quetes = pgTable("quetes", {
+  id: integer("id").primaryKey(),
+  titre: text("titre").notNull(),
+  niveau: integer("niveau"),
+  // PNJ qui donne la quête et PNJ à qui on la rend, quand ce sont des PNJ.
+  pnjDebut: integer("pnj_debut"),
+  pnjFin: integer("pnj_fin"),
+  // Objectifs, récompenses… tels que relevés.
+  donnees: jsonb("donnees").$type<Record<string, unknown>>().notNull().default({}),
+  ...timestamps,
+});
+
 export const pois = pgTable(
   "pois",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     zoneId: integer("zone_id").notNull().references(() => zones.id),
     categorieId: integer("categorie_id").notNull().references(() => categories.id),
+    // Le PNJ représenté par ce point, s'il en est un.
+    pnjId: integer("pnj_id").references(() => pnj.id),
     nom: text("nom").notNull(),
     description: text("description"),
     x: doublePrecision("x").notNull(),
@@ -82,7 +118,52 @@ export const pois = pgTable(
     creePar: integer("cree_par").references(() => users.id),
     ...timestamps,
   },
-  (t) => [index("pois_zone_idx").on(t.zoneId, t.statut), index("pois_categorie_idx").on(t.categorieId)],
+  (t) => [
+    index("pois_zone_idx").on(t.zoneId, t.statut),
+    index("pois_categorie_idx").on(t.categorieId),
+    index("pois_pnj_idx").on(t.pnjId),
+  ],
+);
+
+// Un fichier de relevés en jeu (enregistré par un addon), importé tel quel. Écarter un envoi
+// (statut « ecarte ») retire ses observations du calcul des points publiés.
+export const envoiStatutEnum = pgEnum("envoi_statut", ["accepte", "ecarte"]);
+export const envois = pgTable("envois", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  // Empreinte du contenu : un même fichier n'est importé qu'une fois.
+  empreinte: text("empreinte").notNull().unique(),
+  // Nom de l'addon qui a produit le fichier (« foreverbeacon »).
+  source: text("source").notNull(),
+  // Version du jeu au moment du relevé (« 1.60.1.70205 »).
+  build: text("build"),
+  // null : fichier versionné dans le dépôt (data/releves/), considéré comme fiable.
+  auteurId: integer("auteur_id").references(() => users.id),
+  statut: envoiStatutEnum("statut").notNull().default("accepte"),
+  // Nombre d'observations par type, pour la modération.
+  resume: jsonb("resume").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Ce qu'un joueur a vu en jeu, à un endroit : un PNJ avec qui il a parlé, une quête prise ou rendue…
+// La position est celle du joueur, à quelques mètres de ce qu'il a vu.
+export const observations = pgTable(
+  "observations",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    envoiId: integer("envoi_id").notNull().references(() => envois.id, { onDelete: "cascade" }),
+    // Identité de l'observation (type, cible, lieu, heure) : la même, envoyée dans deux fichiers, compte une fois.
+    cle: text("cle").notNull(),
+    // « pnj » : interaction avec un PNJ ; role dit laquelle (marchand, formateur, quete-debut, quete-fin, dialogue).
+    type: text("type").notNull(),
+    role: text("role"),
+    pnjId: integer("pnj_id"),
+    queteId: integer("quete_id"),
+    zoneId: integer("zone_id").notNull().references(() => zones.id),
+    x: doublePrecision("x").notNull(),
+    y: doublePrecision("y").notNull(),
+    vuLe: timestamp("vu_le", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("observations_cle_idx").on(t.envoiId, t.cle), index("observations_pnj_idx").on(t.pnjId, t.zoneId)],
 );
 
 // Historique complet : une ligne par version d'un point, pour pouvoir revenir en arrière.

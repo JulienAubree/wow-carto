@@ -1,0 +1,19 @@
+# Relevés en jeu
+
+Chaque fichier `*.json.gz` de ce dossier est une séance de jeu enregistrée par un addon : les PNJ à qui l'on a parlé, les quêtes prises et rendues, avec la position du joueur. Il est importé une seule fois au déploiement (`npm run db:import-classic`, voir `scripts/releves.ts`), puis les points des PNJ sont recalculés à partir de tous les relevés :
+
+- un PNJ de Classic « à vérifier » vu à moins de 30 mètres de sa position de Classic est publié, sous le nom qu'il porte dans Forever ;
+- un PNJ vu ailleurs, ou absent de Classic, devient un nouveau point s'il est marchand, formateur, ou s'il donne ou reçoit une quête.
+
+Les fichiers de ce dossier sont considérés comme fiables. Ils ne contiennent ni nom de personnage ni nom de royaume.
+
+## Ajouter une séance ForeverBeacon
+
+1. Quitter le jeu (l'addon écrit son fichier à la déconnexion).
+2. Copier, sans rien modifier dans le dossier du jeu :
+   `/Applications/World of Warcraft/_classic_beta_/WTF/Account/<compte>/SavedVariables/ForeverBeacon.lua`
+   (`_classic_` à la place de `_classic_beta_` après le lancement).
+3. Lancer `python3 -I scripts/donnees/extraire_releves.py <copie de ForeverBeacon.lua>` : le script écrit ici `foreverbeacon-<empreinte>.json.gz` et dit ce qu'il a gardé.
+4. Versionner ce fichier et déployer.
+
+ForeverBeacon peut réécrire son fichier à zéro à chaque séance : il faut donc le copier après chaque séance. Un fichier déjà importé (même contenu) est ignoré.
