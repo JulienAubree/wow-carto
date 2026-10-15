@@ -493,11 +493,14 @@ export async function agreger() {
     // pu le créer (catégorie et nom de Forever) ou s'il est masqué ou modifié par la communauté (figé).
     // Chaque groupe va à son point le plus proche de sa médiane, les paires les plus proches d'abord, quel
     // que soit l'ordre des groupes ; chaque point va au plus à un groupe. Un point repris par un groupe se
-    // retrouve à sa médiane (point des relevés) ou n'a pas bougé (point de Classic) : au déploiement
-    // suivant, sans nouveau relevé, chaque groupe reprend le même point.
-    // - Un groupe dont le point le plus proche est figé est absorbé : il ne change rien, ni ce point, ni
-    //   les autres points auxquels il touche (un point de Classic voisin n'est pas publié, un point publié
-    //   n'est pas caché). C'est ce PNJ qu'on a choisi de cacher ou de décrire autrement.
+    // retrouve à sa médiane (point des relevés) ou n'a pas bougé (point de Classic, point figé) : au
+    // déploiement suivant, sans nouveau relevé, chaque groupe reprend le même point.
+    // - Cet appariement ne regarde pas si un point est figé : confirmer ou masquer un point ne change pas
+    //   quel groupe tient quel point.
+    // - Un groupe qui tient un point figé, ou qu'un point figé touche de plus près que le sien (ou qui n'en
+    //   a pas), est absorbé : il ne change rien, ni son point, ni les autres points auxquels il touche (un
+    //   point de Classic voisin n'est pas publié, un point publié n'est pas caché). C'est ce PNJ qu'on a
+    //   choisi de cacher ou de décrire autrement.
     const paires: { groupe: number; point: Existant; fige: boolean; d: number }[] = [];
     groupes.forEach((g, i) => {
       const categorie = categorieDuGroupe(g);
@@ -513,14 +516,23 @@ export async function agreger() {
       }
     });
     paires.sort((a, b) => a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
+    const tenus = new Map<number, { point: Existant; fige: boolean; d: number }>();
+    const figeLePlusProche = new Map<number, number>();
+    const pris = new Set<number>();
+    for (const { groupe, point, fige, d } of paires) {
+      if (fige && !figeLePlusProche.has(groupe)) figeLePlusProche.set(groupe, d);
+      if (tenus.has(groupe) || pris.has(point.id)) continue;
+      tenus.set(groupe, { point, fige, d });
+      pris.add(point.id);
+    }
     const absorbes = new Set<number>();
-    const vus = new Set<number>();
+    for (const [groupe, d] of figeLePlusProche) {
+      const tenu = tenus.get(groupe);
+      if (!tenu || tenu.fige || d < tenu.d) absorbes.add(groupe);
+    }
     const choix = new Map<number, Existant>();
-    for (const { groupe, point, fige } of paires) {
-      // La première paire d'un groupe est celle de son point le plus proche.
-      if (!vus.has(groupe) && fige) absorbes.add(groupe);
-      vus.add(groupe);
-      if (fige || absorbes.has(groupe) || choix.has(groupe) || apparies.has(point.id)) continue;
+    for (const [groupe, { point }] of tenus) {
+      if (absorbes.has(groupe)) continue;
       choix.set(groupe, point);
       apparies.add(point.id);
     }

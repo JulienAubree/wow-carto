@@ -2,7 +2,7 @@
 
 Chaque fichier `*.json.gz` de ce dossier est une séance de jeu enregistrée par un addon : les PNJ à qui l'on a parlé, les quêtes prises et rendues, avec la position du joueur. Il est importé une seule fois au déploiement (`npm run db:import-classic`, voir `scripts/releves.ts`), puis les points des PNJ sont recalculés à partir de tous les relevés :
 
-- un PNJ de Classic « à vérifier » vu à moins de 30 mètres de sa position de Classic est publié, sous le nom qu'il porte dans Forever ;
+- un PNJ vu à moins de 30 mètres d'un de ses points reprend le plus proche : un PNJ de Classic « à vérifier » est ainsi publié à sa position de Classic, sous le nom qu'il porte dans Forever, sauf si un point déjà relevé de ce PNJ est plus près ;
 - un PNJ vu ailleurs, ou absent de Classic, devient un nouveau point s'il est marchand, formateur, ou s'il donne ou reçoit une quête.
 
 Les fichiers de ce dossier sont considérés comme fiables. Ils ne contiennent ni nom de personnage ni nom de royaume.

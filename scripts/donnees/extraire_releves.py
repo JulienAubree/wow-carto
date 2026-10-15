@@ -55,6 +55,9 @@ INCONNU = {"Inconnu", "Inconnue", "Unknown"}
 SOURCE_DU_ROLE = {"marchand": "merchant", "formateur": "trainer", "dialogue": "gossip"}
 # Écart maximal (carte de 0 à 1) entre deux positions notées au même endroit (fenêtre, quête, créature vue).
 ECART_VU = 0.01
+# Sur une petite carte (capitale), ECART_VU fait moins de 8 mètres du jeu : le joueur parle à un PNJ de
+# plus loin. Écart minimal, en mètres, pour reconnaître un endroit où l'addon a noté la créature.
+ECART_PNJ = 12
 # Avancement du joueur dans un objectif de quête (« Bandit tué : 3/15 », « 0/8 Gerbes ») : retiré.
 AVANCEMENT = re.compile(r"^\s*\d+\s*/\s*\d+\s+|\s*:?\s*\d+\s*/\s*\d+\s*$")
 
@@ -120,6 +123,11 @@ class Positions:
         with open(CARTES, encoding="utf-8") as f:
             cartes = json.load(f)["cartes"]
         self.zones = {c["uiMap"]: slug for slug, c in cartes.items() if slug not in CONTINENTS}
+        # Bornes [xMin, yMin, xMax, yMax] dans le monde : la largeur de la carte couvre yMax - yMin mètres,
+        # sa hauteur xMax - xMin (voir scripts/releves.ts).
+        self.ecarts = {c["uiMap"]: (max(ECART_VU, ECART_PNJ / (c["forever"][3] - c["forever"][1])),
+                                    max(ECART_VU, ECART_PNJ / (c["forever"][2] - c["forever"][0])))
+                       for c in cartes.values()}
         self.ignorees = Counter()
 
     def __call__(self, pos):
@@ -154,11 +162,14 @@ def liste(v):
     return v if isinstance(v, list) else []
 
 
-def proches(a, b):
-    """Deux positions de l'addon sur la même carte, à moins de ECART_VU l'une de l'autre."""
-    return (isinstance(a, dict) and isinstance(b, dict) and a.get("map") is not None and a.get("map") == b.get("map")
-            and all(isinstance(p.get(k), (int, float)) for p in (a, b) for k in ("x", "y"))
-            and abs(a["x"] - b["x"]) <= ECART_VU and abs(a["y"] - b["y"]) <= ECART_VU)
+def proches(a, b, ecarts=None):
+    """Deux positions de l'addon sur la même carte, à moins de ECART_VU l'une de l'autre (ou des écarts en x
+    et en y donnés pour chaque carte)."""
+    if not (isinstance(a, dict) and isinstance(b, dict) and a.get("map") is not None and a.get("map") == b.get("map")
+            and all(isinstance(p.get(k), (int, float)) for p in (a, b) for k in ("x", "y"))):
+        return False
+    ex, ey = (ecarts or {}).get(entier(a["map"]), (ECART_VU, ECART_VU))
+    return abs(a["x"] - b["x"]) <= ex and abs(a["y"] - b["y"]) <= ey
 
 
 def niveaux(rec):
@@ -250,9 +261,9 @@ def main():
     # numéro. Elle n'est retenue que si l'addon a compté une créature de ce numéro dans ce rôle. Un objet
     # du jeu (avis de recherche, plaque…) ouvre aussi des fenêtres de dialogue, jamais de marchand ni de
     # formateur : une fenêtre de dialogue n'est retenue que si la créature a été vue à cet endroit (l'addon
-    # la note à chaque fenêtre), ou, si cette position est sortie de ses 12 dernières, sous un nom déjà
-    # connu de la créature (y compris celui de ses fenêtres de marchand et de formateur) ou si elle n'en a
-    # aucun.
+    # la note à chaque fenêtre), ou, si cette position est sortie de ses 12 dernières et n'est pas celle
+    # d'un objet de ce numéro, sous un nom déjà connu de la créature (y compris celui de ses fenêtres de
+    # marchand et de formateur) ou si elle n'en a aucun.
     fenetres = []
     for role, domaine in (("marchand", "vendors"), ("formateur", "trainers"), ("dialogue", "gossip")):
         for _, rec in catalogue(doc.get(domaine)):
@@ -266,8 +277,8 @@ def main():
         if role != "dialogue" and nom_valide(rec.get("name")):
             connus.setdefault(ident, set()).add(nom_valide(rec["name"]))
     fenetres = [(t, ident, role, rec) for t, ident, role, rec in fenetres
-                if role != "dialogue" or vue_ici(ident, rec.get("pos")) or not connus.get(ident)
-                or nom_valide(rec.get("name")) in connus[ident]]
+                if role != "dialogue" or vue_ici(ident, rec.get("pos")) or (not objet_ici(ident, rec.get("pos")) and (
+                    not connus.get(ident) or nom_valide(rec.get("name")) in connus[ident]))]
     # Endroits où l'addon a noté la créature elle-même : fenêtres retenues, donneur ou destinataire d'une
     # quête.
     lieux = {}
@@ -279,14 +290,15 @@ def main():
         observer(role, ident, rec.get("pos"), t)
         lieux.setdefault(ident, []).append(rec.get("pos"))
         if role == "dialogue":
-            proposees[ident] = {q.get("id") for q in liste(rec.get("quests")) if isinstance(q, dict) and q.get("available")}
+            proposees[ident] = {entier(q.get("id")) for q in liste(rec.get("quests"))
+                                if isinstance(q, dict) and q.get("available")} - {None}
 
     # Quête proposée : le numéro de l'événement est celui de la fenêtre, qui peut être un objet. Il est
     # retenu pour une créature vue à cet endroit ; sinon, pas à l'endroit d'un objet de ce numéro (noté sur
     # une quête ou survolé), et s'il est le donneur (créature) noté sur la quête, une créature que l'addon a
-    # notée à cet endroit (fenêtre, autre quête), ou une créature dont la fenêtre de dialogue proposait la
-    # quête. Le donneur noté sur la quête est celui de la dernière proposition (ou le joueur qui l'a
-    # partagée).
+    # notée à cet endroit (fenêtre, autre quête ; à ECART_PNJ mètres près sur une petite carte), ou une
+    # créature dont la fenêtre de dialogue proposait la quête. Le donneur noté sur la quête est celui de la
+    # dernière proposition (ou le joueur qui l'a partagée).
     debuts = {}
     rendues = {}
     for ev in liste(doc.get("questEvents")):
@@ -298,7 +310,7 @@ def main():
         if ev.get("kind") != "offered" or not quete or not ident:
             continue
         if not vue_ici(ident, lieu) and (objet_ici(ident, lieu) or not (
-                ident == givers.get((quete, "giver")) or any(proches(l, lieu) for l in lieux.get(ident, []))
+                ident == givers.get((quete, "giver")) or any(proches(l, lieu, position.ecarts) for l in lieux.get(ident, []))
                 or quete in proposees.get(ident, ()))):
             continue
         observer("quete-debut", ident, lieu, t, quete)
