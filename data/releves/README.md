@@ -18,4 +18,4 @@ Les fichiers de ce dossier sont considérés comme fiables. Ils ne contiennent n
 
 Le fichier de ForeverBeacon s'accumule d'une séance à l'autre (jusqu'à `/fb wipe`) : chaque copie reprend les séances précédentes, et une interaction déjà importée n'est comptée qu'une fois. Un fichier déjà importé (même contenu) est ignoré. Seuls les clients de Forever (version 1.60 et après) en français (frFR) sont acceptés.
 
-Retirer un fichier du dossier ne retire pas ce qu'il a apporté : pour cela, passer son envoi à `ecarte` dans la table `envois`, puis relancer l'import. Ses points redeviennent « à vérifier » (cachés) et ses noms de PNJ et de quêtes sont retirés.
+Retirer un fichier du dossier ne retire pas ce qu'il a apporté : pour cela, passer son envoi à `ecarte` dans la table `envois`, puis relancer l'import. Ses points redeviennent « à vérifier » (cachés) et ses noms de PNJ et de quêtes sont retirés, sauf les points que la communauté a confirmés, signalés ou modifiés, ou que la modération a masqués : l'import n'y touche jamais, il faut les masquer à la main.
