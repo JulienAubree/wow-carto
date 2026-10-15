@@ -1,16 +1,16 @@
 /* Carte d'un continent sur l'accueil : l'image du jeu, les zones en SVG par-dessus, les repères des villes et
-   l'étiquette de la zone survolée en HTML (taille fixe quelle que soit la taille de la carte). */
+   l'étiquette de la zone survolée en HTML (taille fixe quelle que soit la taille de la carte). --rapport : largeur
+   sur hauteur du cadrage. */
 
 .carte {
   position: relative;
-  aspect-ratio: 1002 / 668;
+  aspect-ratio: var(--rapport);
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: #3a2c18;
   box-shadow: var(--shadow-2);
 }
 
-.fond,
 .calque {
   position: absolute;
   inset: 0;
@@ -18,8 +18,12 @@
   height: 100%;
 }
 
+/* Largeur et décalage posés par le composant : seul le cadrage est visible. */
 .fond {
+  position: absolute;
+  top: 0;
   display: block;
+  height: 100%;
 }
 
 .zone {
@@ -30,17 +34,18 @@
   fill: transparent;
 }
 
-/* Contour de focus sur la forme de la zone (le contour rectangulaire des liens SVG ne la suivrait pas) : brun très
-   sombre, au moins 3:1 sur le parchemin comme sur la mer, avec un halo clair dessous (.halo). */
+/* Le contour de focus suit la forme de la zone (.anneau) ; celui des liens SVG serait un rectangle. */
 .zone:focus-visible {
   outline: none;
 }
 
-.zone:focus-visible path {
-  stroke: var(--map-glyph);
-  stroke-width: 2.5px;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
+/* Disque invisible de 24 px autour du cœur de la zone, quelle que soit la taille de la carte. */
+.cible {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
 }
 
 .eclairage {
@@ -59,17 +64,30 @@
   vector-effect: non-scaling-stroke;
 }
 
-.halo {
+/* Contour de focus : brun très sombre, au moins 3:1 sur le parchemin comme sur la mer, sur un halo clair. */
+.halo,
+.anneau {
   fill: none;
-  stroke: var(--map-ring);
-  stroke-width: 6px;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 
-/* Repère d'une ville : un point et son nom, comme les noms de la vue terrain. Le point est centré sur la ville. */
+.halo {
+  stroke: var(--map-ring);
+  stroke-width: 6px;
+}
+
+.anneau {
+  stroke: var(--map-glyph);
+  stroke-width: 2.5px;
+}
+
+/* Repère d'une ville : un point et son nom, comme les noms de la vue terrain. Le point est centré sur la ville. Pour la
+   souris, seul le point est une cible (24 px, ::after) : le nom laisse passer le survol et le clic vers les zones
+   qu'il recouvre. */
 .repere {
   position: absolute;
+  pointer-events: none;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -103,6 +121,29 @@
     0 0 4px rgb(0 0 0 / 0.8);
 }
 
+.repere::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 12px);
+  left: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+/* Nom du côté où la carte a le plus de place. */
+.repere[data-gauche] {
+  flex-direction: row-reverse;
+  padding: 2px 5px 2px 8px;
+  transform: translate(calc(10px - 100%), -50%);
+}
+
+.repere[data-gauche]::after {
+  left: auto;
+  right: -2px;
+}
+
 .repere:hover,
 .repere[data-actif] {
   background: var(--map-chip);
@@ -124,7 +165,7 @@
   gap: 3px;
   padding: 6px 12px 7px;
   border-radius: var(--radius-md);
-  background: rgb(20 18 14 / 0.86);
+  background: rgb(20 18 14);
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
   color: var(--map-label);
   text-align: center;

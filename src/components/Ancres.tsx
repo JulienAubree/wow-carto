@@ -35,29 +35,51 @@ const auRetour = () => window.event?.type === "popstate" || performance.now() - 
 // jusqu'à l'ancre au lieu de rendre la position quittée : on la rend nous-mêmes.
 const positions = new Map<string, number>();
 
+// Cible d'une ancre de l'accueil. Sur ordinateur, la liste est repliée : /#kalimdor mène à la carte du continent,
+// /#autres-territoires aux liens sous les cartes (le premier élément affiché dont data-ancre cite l'ancre), et la cible
+// prend le focus : la touche Tab repart de là.
+function cibleAncre(id: string) {
+  const section = document.getElementById(id);
+  if (!section || section.getClientRects().length) return section;
+  const remplacante = [...document.querySelectorAll<HTMLElement>(`[data-ancre~="${CSS.escape(id)}"]`)].find(
+    (el) => el.getClientRects().length,
+  );
+  if (remplacante) {
+    remplacante.tabIndex = -1;
+    remplacante.focus({ preventScroll: true });
+  }
+  return remplacante;
+}
+
 // Lien /#continent suivi depuis une autre page : la section arrive en streaming (ou réapparaît, cachée par
 // <Activity>) après la tentative de défilement du routeur. On défile vers elle une fois affichée, sauf au retour.
 export function DefilementAncre() {
   useEffect(() => {
     let rendre = 0;
     let attente = 0;
+    const versAncre = () => {
+      // Les identifiants des sections sont en ASCII : pas de décodage, qui échouerait sur une ancre mal formée (« #% »).
+      const id = location.hash.slice(1);
+      if (id) cibleAncre(id)?.scrollIntoView();
+    };
     if (auRetour()) {
       const y = positions.get(location.href);
       if (y != null) rendre = requestAnimationFrame(() => scrollTo(0, y));
     } else {
-      // Les identifiants des sections sont en ASCII : pas de décodage, qui échouerait sur une ancre mal formée (« #% »).
-      const id = location.hash.slice(1);
-      if (id) document.getElementById(id)?.scrollIntoView();
+      versAncre();
     }
     const noter = () => {
       cancelAnimationFrame(attente);
       attente = requestAnimationFrame(() => positions.set(location.href, scrollY));
     };
     addEventListener("scroll", noter, { passive: true });
+    // Ancre changée sans quitter l'accueil (barre d'adresse, lien natif) : même repli quand la section est cachée.
+    addEventListener("hashchange", versAncre);
     return () => {
       cancelAnimationFrame(rendre);
       cancelAnimationFrame(attente);
       removeEventListener("scroll", noter);
+      removeEventListener("hashchange", versAncre);
     };
   }, []);
   return null;

@@ -1,6 +1,6 @@
 # Extraire les cartes et régénérer les points
 
-Les fichiers produits sont versionnés (`public/cartes/forever/*.webp`, `public/cartes/terrain/`, `data/forever/*.json`) : ces étapes ne servent qu'à les refaire, par exemple après une mise à jour de WoW: Forever. Il faut Python 3 ; Pillow pour les deux dernières étapes.
+Les fichiers produits sont versionnés (`public/cartes/forever/*.webp`, `public/cartes/terrain/`, `data/forever/*.json`) : ces étapes ne servent qu'à les refaire, par exemple après une mise à jour de WoW: Forever. Il faut Python 3 ; Pillow pour convertir les cartes et pour les contours des zones (étapes 2 et 4).
 
 ## 1. Extraire les cartes du client (sur l'ordinateur où le jeu est installé)
 
@@ -66,12 +66,20 @@ Au déploiement suivant, `npm run db:import-classic` voit que le fichier a chang
 
 ## 4. Contours des zones sur les cartes des continents
 
-L'accueil sur ordinateur montre les cartes de Kalimdor et des Royaumes de l'Est, où l'on clique sur une zone ; la forme de chaque zone vient de `data/forever/contours.json` (en pixels des cartes de continent, 1002 x 668), écrit par `contours.py` (Python 3, bibliothèque standard seulement). Avec les tables et les zones des parcelles de l'étape 1, chaque parcelle va à la zone du site que le jeu lui donne, comme les points de l'étape 3 :
+L'accueil sur ordinateur montre les cartes de Kalimdor et des Royaumes de l'Est, où l'on clique sur une zone ; la forme de chaque zone vient de `data/forever/contours.json` (en pixels des cartes de continent, 1002 x 668), écrit par `contours.py`. Sans argument, le script lit les frontières dessinées sur `public/cartes/forever/<continent>.webp` (il faut Pillow) :
+
+```bash
+python3 -I scripts/cartes/contours.py
+```
+
+Chaque zone s'étend depuis une ou plusieurs graines placées à la main (`GRAINES` dans le script) sur les terres de l'image, sans passer par la mer (bleue ou hachurée) ; un pixel va à la zone qui l'atteint au moindre coût, et un trait sombre coûte cher à franchir : les zones s'arrêtent aux frontières dessinées. Les terres qui ne sont à aucune zone du site (le cadre, Quel'Thalas, Gilnéas…) partent des bords de l'image et des graines `""`. Le script vérifie ensuite que les points du client (`data/forever/client.json`) tombent dans leur zone, à 4 pixels près, et signale les autres : après une nouvelle image, c'est là qu'on voit s'il faut déplacer ou ajouter une graine.
+
+Avec les tables et les zones des parcelles de l'étape 1, chaque parcelle va plutôt à la zone du site que le jeu lui donne, comme les points de l'étape 3 (la pleine mer n'est à aucune zone) ; les formes suivent alors le terrain du jeu, qui ne tombe pas toujours sur les frontières dessinées :
 
 ```bash
 python3 -I scripts/cartes/contours.py ~/extraction-cartes/tables ~/extraction-cartes/aires/aires.json
 ```
 
-Sans argument, le script donne des formes approchées d'après les seuls rectangles de `data/forever/cartes.json` (chaque zone prend la part de son rectangle la plus proche de son centre, les villes leur rectangle entier) : c'est ce que contient le fichier tant que `aires.json` n'a pas été relevé. Le champ `"source"` du fichier dit lequel des deux l'a produit (`"aires"` ou `"rectangles"`). Une zone sans forme sur la carte de son continent (polygones vides) est proposée en lien sous les cartes.
+Le champ `"source"` du fichier dit lequel des deux l'a produit (`"image"` ou `"aires"`). Les villes n'ont pas de forme : elles sont au-dessus du terrain de la zone qui les entoure, et l'accueil les montre par un repère à la place donnée par `"point"`. Une zone sans forme sur la carte de son continent (polygones vides) est proposée en lien sous les cartes.
 
 Les slugs des zones doivent rester alignés entre `scripts/cartes/forever.py` et `scripts/donnees/zones.ts`.

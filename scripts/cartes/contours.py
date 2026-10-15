@@ -1,25 +1,30 @@
 """Contours des zones du site sur les cartes des deux continents, pour l'accueil.
 
 Usage :
-  python3 -I scripts/cartes/contours.py                                               mode approché
-  python3 -I scripts/cartes/contours.py <dossier des tables> <aires.json> [<sortie>]   mode précis
+  python3 -I scripts/cartes/contours.py                                               d'après les cartes dessinées
+  python3 -I scripts/cartes/contours.py <dossier des tables> <aires.json> [<sortie>]   d'après le terrain du jeu
 
-Mode précis : chaque parcelle du terrain (16 x 16 par ADT, aires.json de client/extraire_aires.py) est rangée
-dans une zone du site comme les points du client, par la classe Zones de scripts/donnees/extraire_client.py
-(zone de la parcelle, puis ses zones parentes, jusqu'à une carte du site qui la couvre). Une ville est une
-zone à part entière : elle fait un trou dans la zone qui l'entoure.
-Mode approché, en attendant aires.json : d'après les seuls rectangles de data/forever/cartes.json, chaque
-point va, parmi les zones dont le rectangle le contient, à celle dont le centre est le plus proche (en distance
-rapportée à la taille du rectangle) ; une ville garde tout son rectangle.
+Sans argument (il faut Pillow, comme forever.py) : les zones sont lues sur l'image du continent
+(public/cartes/forever/<continent>.webp), dont elles suivent les frontières dessinées. Chaque zone s'étend
+depuis ses graines (GRAINES, placées à la main) sur les terres, et chaque pixel va à la zone qu'il rejoint au
+moindre coût, un trait sombre coûtant cher à franchir. Les terres dessinées hors des zones du site (cadre,
+Quel'Thalas, Gilnéas…) partent des bords de l'image et de graines "". Les points du client
+(data/forever/client.json) servent de contrôle : le script signale ceux qui tombent loin de leur zone.
+Avec les tables et aires.json (client/extraire_aires.py) : chaque parcelle du terrain (16 x 16 par ADT) est
+rangée dans une zone du site comme les points du client, en remontant ses zones parentes jusqu'à une carte du
+site qui la couvre.
+Dans les deux cas, une ville n'a pas de forme : elle est au-dessus du terrain de la zone qui l'entoure.
 
-Écrit data/forever/contours.json, en pixels de la carte du continent (public/cartes/forever/<continent>.webp) :
-  {"source": "aires" | "rectangles", "taille": [1002, 668],
+Écrit data/forever/contours.json, en pixels de la carte du continent :
+  {"source": "image" | "aires", "taille": [1002, 668],
    "continents": {continent: {slug: {"point": [x, y], "surface": px², "polygones": [[extérieur, trou...]...]}}}}
 Un anneau est une liste [x0, y0, x1, y1...] simplifiée (Douglas-Peucker, 1 px) sans écart entre deux zones
 voisines. "point" : l'endroit de la zone le plus éloigné de ses bords, ou le centre de son rectangle si elle
 n'a pas de forme (polygones vides).
 """
+import heapq
 import json
+import math
 import os
 import sys
 from collections import defaultdict
@@ -35,8 +40,72 @@ CONTINENTS = {"kalimdor": "kalimdor", "royaumes-de-l-est": "azeroth"}
 # Comme scripts/donnees/zones.ts (ville: true).
 VILLES = {"orgrimmar", "pitons-du-tonnerre", "darnassus", "hurlevent", "forgefer", "fossoyeuse"}
 TOLERANCE = 1.0
-FINESSE = 2
 SURFACE_MIN = 2.0
+
+# Pixels de l'image du continent d'où part chaque zone : plusieurs quand un trait intérieur (route, rivière,
+# nom) la coupe. "" : terres dessinées qui ne sont à aucune zone du site.
+GRAINES = {
+    "kalimdor": {
+        "teldrassil": [(425, 75)],
+        "reflet-de-lune": [(545, 124), (526, 147)],
+        "berceau-de-l-hiver": [(590, 165), (590, 200)],
+        "mont-hyjal": [(535, 220)],
+        "gangrebois": [(490, 185), (485, 225), (505, 163)],
+        "sombrivage": [(455, 185), (497, 140)],
+        "orneval": [(470, 270), (530, 285), (448, 252)],
+        "serres-rocheuses": [(425, 290), (440, 318)],
+        "azshara": [(600, 262), (650, 222)],
+        "durotar": [(600, 340), (597, 362)],
+        "tarides": [(525, 380), (515, 430), (535, 350)],
+        "mulgore": [(475, 385), (470, 432)],
+        "desolace": [(410, 370), (425, 395)],
+        "shen-dralas": [(445, 432)],
+        "feralas": [(420, 470), (372, 470), (373, 512), (413, 428), (470, 480)],
+        "marecage-d-aprefange": [(560, 450), (566, 475), (588, 452)],
+        "mille-pointes": [(520, 500), (575, 515), (495, 480)],
+        "silithus": [(420, 560), (420, 610)],
+        "cratere-d-un-goro": [(500, 560)],
+        "tanaris": [(565, 570), (580, 600), (540, 525)],
+    },
+    "royaumes-de-l-est": {
+        "clairieres-de-tirisfal": [(420, 145), (460, 150)],
+        "maleterres-de-l-ouest": [(505, 140), (500, 184), (527, 177)],
+        "maleterres-de-l-est": [(575, 150), (605, 150), (545, 128)],
+        "foret-des-pins-argentes": [(415, 200), (425, 215)],
+        "montagnes-d-alterac": [(475, 192)],
+        "contreforts-de-hautebrande": [(468, 232), (492, 228)],
+        "les-hinterlands": [(540, 205), (575, 215)],
+        "hautes-terres-d-arathi": [(540, 250)],
+        "les-paluns": [(530, 310), (495, 318)],
+        "dun-morogh": [(450, 360), (500, 370), (467, 388)],
+        "loch-modan": [(540, 362), (580, 365)],
+        "terres-ingrates": [(535, 405)],
+        "gorge-des-vents-brulants": [(490, 405)],
+        "steppes-ardentes": [(505, 440), (530, 450)],
+        "rives-claires": [(590, 440), (593, 470)],
+        "foret-d-elwynn": [(470, 470)],
+        "les-carmines": [(533, 478)],
+        "marche-de-l-ouest": [(420, 520)],
+        "bois-de-la-penombre": [(465, 515), (480, 520)],
+        "defile-de-deuillevent": [(510, 518)],
+        "marais-des-chagrins": [(550, 503)],
+        "terres-foudroyees": [(545, 550)],
+        "vallee-de-strangleronce": [(470, 570), (450, 600)],
+        # Quel'Thalas, la bande au nord des Maleterres, Gilnéas, entre Dun Morogh et Elwynn.
+        "": [(620, 60), (545, 100), (400, 255), (435, 425)],
+    },
+}
+# Coût d'un pixel : 1, plus TRAIT selon la noirceur du trait (fermeture moins luminance) de TRAIT_MIN à
+# TRAIT_MIN + TRAIT_PLEIN.
+TRAIT, TRAIT_MIN, TRAIT_PLEIN = 100, 15, 25
+# Mer : bleue, ou hachurée à l'horizontale (gradient vertical bien plus fort que l'horizontal).
+HACHURES, HACHURES_TERRE = 0.3, 0.5
+# Une poche fermée plus petite (lac, nom écrit sur la terre) reste à la zone qui l'entoure.
+LAC_MAX = 3000
+# Les terres à moins de MARGE pixels des bords de l'image sont le cadre.
+MARGE_X, MARGE_Y = 30, 25
+# Point du client plus loin que cela de sa zone : graine ou frontière à revoir.
+ECART_MAX = 4
 
 
 def vers_pixel(b, x, y):
@@ -44,23 +113,126 @@ def vers_pixel(b, x, y):
     return (b[3] - y) / (b[3] - b[1]) * LARGEUR, (b[2] - x) / (b[2] - b[0]) * HAUTEUR
 
 
-def grille_rectangles(cartes, continent, slugs):
-    """Propriétaire de chaque cellule d'une grille d'un demi-pixel (indice dans slugs, -1 pour aucun). La distance
-    au centre est rapportée à la taille du rectangle : une grande zone n'est pas rognée par sa petite voisine."""
-    b = cartes[continent]["forever"]
-    largeur, hauteur = LARGEUR * FINESSE, HAUTEUR * FINESSE
-    proprio, rang = [-1] * (largeur * hauteur), [float("inf")] * (largeur * hauteur)
-    for i, slug in enumerate(slugs):
-        z = cartes[slug]["forever"]
-        (x0, y0), (x1, y1) = [(x * FINESSE, y * FINESSE) for x, y in (vers_pixel(b, z[2], z[3]), vers_pixel(b, z[0], z[1]))]
-        cx, cy, dx, dy = (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0
-        for r in range(max(0, round(y0)), min(hauteur, round(y1))):
-            for c in range(max(0, round(x0)), min(largeur, round(x1))):
-                d = -1 if slug in VILLES else ((c + 0.5 - cx) / dx) ** 2 + ((r + 0.5 - cy) / dy) ** 2
-                k = r * largeur + c
-                if d < rang[k]:
-                    rang[k], proprio[k] = d, i
-    return proprio, largeur, hauteur, lambda i, j: (i / FINESSE, j / FINESSE)
+def voisins4(k, largeur, n):
+    x = k % largeur
+    return [v for v, ok in ((k - 1, x > 0), (k + 1, x < largeur - 1), (k - largeur, k >= largeur), (k + largeur, k + largeur < n)) if ok]
+
+
+def composantes(masque, largeur):
+    """Taille de la composante (4-connexe) de chaque pixel du masque, 0 hors du masque."""
+    n = len(masque)
+    taille = [0] * n
+    for depart in range(n):
+        if masque[depart] and not taille[depart]:
+            vus, pile = [depart], [depart]
+            taille[depart] = -1
+            while pile:
+                for v in voisins4(pile.pop(), largeur, n):
+                    if masque[v] and not taille[v]:
+                        taille[v] = -1
+                        vus.append(v)
+                        pile.append(v)
+            for k in vus:
+                taille[k] = len(vus)
+    return taille
+
+
+def grille_image(continent, slugs):
+    """Propriétaire de chaque pixel de l'image du continent (indice dans slugs, -1 pour aucun)."""
+    from PIL import Image, ImageFilter
+
+    graines = GRAINES[continent]
+    manquantes = [s for s in slugs if s not in VILLES and s not in graines]
+    if manquantes:
+        raise SystemExit(f"{continent} : pas de graine pour {', '.join(manquantes)}")
+    image = Image.open(os.path.join(RACINE, "public", "cartes", "forever", continent + ".webp")).convert("RGB")
+    largeur, hauteur = image.size
+    n = largeur * hauteur
+    gris = image.convert("L")
+    lum = gris.tobytes()
+
+    # Mer : alpha est le canal du masque des terres de CarteContinent.tsx (TERRES).
+    rgb = image.filter(ImageFilter.BoxBlur(1)).tobytes()
+    alpha = [(4.25 * rgb[3 * k] + 8.5 * rgb[3 * k + 1] - 12.75 * rgb[3 * k + 2]) / 255 - 2.6 for k in range(n)]
+    gx, gy = bytearray(n), bytearray(n)
+    for y in range(1, hauteur - 1):
+        for k in range(y * largeur + 1, (y + 1) * largeur - 1):
+            gx[k] = min(255, 2 * abs(lum[k + 1] - lum[k - 1]))
+            gy[k] = min(255, 2 * abs(lum[k + largeur] - lum[k - largeur]))
+    flou = lambda g: Image.frombytes("L", (largeur, hauteur), bytes(g)).filter(ImageFilter.BoxBlur(3)).tobytes()
+    gx, gy = flou(gx), flou(gy)
+    mer = [alpha[k] < -0.3 or (alpha[k] < HACHURES_TERRE and (gy[k] - gx[k]) / (gy[k] + gx[k] + 6) > HACHURES) for k in range(n)]
+
+    # Terres : ce qui se rejoint depuis les graines sans passer par la mer, et les poches fermées.
+    departs = [(i, y * largeur + x) for i, s in enumerate([*slugs, ""]) for x, y in graines.get(s, [])]
+    terre, pile = [False] * n, []
+    for i, k in departs:
+        if mer[k]:
+            raise SystemExit(f"{continent} : la graine {k % largeur},{k // largeur} de {[*slugs, 'hors'][i]} est en mer")
+        terre[k] = True
+        pile.append(k)
+    while pile:
+        for v in voisins4(pile.pop(), largeur, n):
+            if not terre[v] and not mer[v]:
+                terre[v] = True
+                pile.append(v)
+    poches = composantes([not t for t in terre], largeur)
+    terre = [t or poches[k] < LAC_MAX for k, t in enumerate(terre)]
+
+    # Traits : fermeture (le trait sombre disparaît) moins luminance, épaissie d'un pixel.
+    fermeture = gris.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.MinFilter(7)).tobytes()
+    trait = Image.frombytes("L", (largeur, hauteur), bytes(max(0, fermeture[k] - lum[k]) for k in range(n)))
+    trait = trait.filter(ImageFilter.MaxFilter(3)).tobytes()
+    cout = [1 + TRAIT * min(1, max(0, t - TRAIT_MIN) / TRAIT_PLEIN) for t in trait]
+
+    hors = len(slugs)
+    proprio, distance, tas = [-1] * n, [math.inf] * n, []
+    for i, k in departs:
+        distance[k] = 0
+        tas.append((0, k, i))
+    for k in range(n):
+        x, y = k % largeur, k // largeur
+        if terre[k] and not (MARGE_X <= x < largeur - MARGE_X and MARGE_Y <= y < hauteur - MARGE_Y):
+            distance[k] = 0
+            tas.append((0, k, hors))
+    heapq.heapify(tas)
+    pas = [(dx, dy, math.hypot(dx, dy)) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
+    while tas:
+        d, k, i = heapq.heappop(tas)
+        if proprio[k] >= 0:
+            continue
+        proprio[k] = i
+        x, y = k % largeur, k // largeur
+        for dx, dy, longueur in pas:
+            if 0 <= x + dx < largeur and 0 <= y + dy < hauteur:
+                v = k + dy * largeur + dx
+                if terre[v] and proprio[v] < 0:
+                    c = (cout[k] + cout[v]) / 2
+                    if dx and dy:
+                        # En diagonale, pas de passage entre deux pixels d'un trait d'un pixel d'épaisseur.
+                        c = max(c, min(cout[k + dx], cout[k + dy * largeur]))
+                    if d + longueur * c < distance[v]:
+                        distance[v] = d + longueur * c
+                        heapq.heappush(tas, (distance[v], v, i))
+    proprio = [-1 if o == hors else o for o in proprio]
+    return proprio, largeur, hauteur, lambda i, j: (i, j)
+
+
+def zone_parcelle(zones, carte, x, y):
+    """Comme Zones.zone, sans prendre la seule carte du site qui couvre la position quand la zone du jeu de la
+    parcelle n'en a aucune : la pleine mer au large d'une côte n'est pas à la zone de la côte. Ce repli reste
+    pour une parcelle sans zone du jeu et pour les cartes du site attribuées à toute une région (AreaID 0)."""
+    candidates = [(a, s) for m, a, r, s in zones.affectations if m == carte and r[0] <= x <= r[2] and r[1] <= y <= r[3]]
+    chaine, a = [], zones.aire(carte, x, y)
+    while a and a not in chaine:
+        chaine.append(a)
+        a = zones.parents.get(a, 0)
+    for a in chaine:
+        for aire_carte, slug in candidates:
+            if aire_carte == a:
+                return slug
+    repli = {s for a, s in candidates if not chaine or a == 0}
+    return repli.pop() if len(repli) == 1 else None
 
 
 def grille_aires(zones, cartes, continent, slugs):
@@ -73,13 +245,24 @@ def grille_aires(zones, cartes, continent, slugs):
     x0, y0 = min(x for x, _ in adt), min(y for _, y in adt)
     largeur, hauteur = 16 * (max(x for x, _ in adt) - x0 + 1), 16 * (max(y for _, y in adt) - y0 + 1)
     index = {s: i for i, s in enumerate(slugs)}
-    proprio = [-1] * (largeur * hauteur)
+    proprio, villes = [-1] * (largeur * hauteur), []
     for ax, ay in adt:
         for k in range(256):
             col, lig = 16 * ax + k % 16, 16 * ay + k // 16
-            slug = zones.zone(CARTES_MONDE[terrain], DEMI_MONDE - (lig + 0.5) * PARCELLE, DEMI_MONDE - (col + 0.5) * PARCELLE)
-            if slug in index:
+            slug = zone_parcelle(zones, CARTES_MONDE[terrain], DEMI_MONDE - (lig + 0.5) * PARCELLE, DEMI_MONDE - (col + 0.5) * PARCELLE)
+            if slug in VILLES:
+                villes.append((lig - 16 * y0) * largeur + col - 16 * x0)
+            elif slug in index:
                 proprio[(lig - 16 * y0) * largeur + col - 16 * x0] = index[slug]
+    # Le terrain d'une ville va à la zone qui l'entoure, de proche en proche depuis ses bords.
+    reste = set(villes)
+    while reste:
+        prises = {k: proprio[v] for k in reste for v in voisins4(k, largeur, len(proprio)) if v not in reste and proprio[v] >= 0}
+        if not prises:
+            break
+        for k, o in prises.items():
+            proprio[k] = o
+        reste -= prises.keys()
     b = cartes[continent]["forever"]
 
     def pixel(i, j):
@@ -278,6 +461,31 @@ def contours(proprio, largeur, hauteur, pixel, slugs):
     return res
 
 
+def controler(continent, proprio, largeur, slugs, b):
+    """Signale les points du client qui tombent à plus de ECART_MAX pixels de leur zone."""
+    with open(os.path.join(RACINE, "data", "forever", "client.json"), encoding="utf-8") as f:
+        points = json.load(f)["points"]
+    hauteur = len(proprio) // largeur
+    index = {s: i for i, s in enumerate(slugs)}
+
+    def ecart(x, y, i):
+        for r in range(ECART_MAX + 1):
+            for j in range(max(0, y - r), min(hauteur, y + r + 1)):
+                for c in range(max(0, x - r), min(largeur, x + r + 1)):
+                    if max(abs(c - x), abs(j - y)) == r and proprio[j * largeur + c] == i:
+                        return r
+        return None
+
+    for p in points:
+        carte, mx, my = p["monde"]
+        if carte != CARTES_MONDE[CONTINENTS[continent]] or p["zone"] in VILLES or p["zone"] not in index:
+            continue
+        x, y = (int(v) for v in vers_pixel(b, mx, my))
+        if ecart(x, y, index[p["zone"]]) is None:
+            o = proprio[y * largeur + x] if 0 <= x < largeur and 0 <= y < hauteur else -1
+            print(f"  attention : {p['nom']} ({p['zone']}) en {x},{y}, sur {slugs[o] if o >= 0 else 'aucune zone'}")
+
+
 def main():
     if len(sys.argv) not in (1, 3, 4):
         raise SystemExit(__doc__)
@@ -291,9 +499,12 @@ def main():
     resultat = {}
     for continent, terrain in CONTINENTS.items():
         slugs = [s for s, c in cartes.items() if c["terrain"] == terrain and s != continent]
-        grille = grille_aires(zones, cartes, continent, slugs) if zones else grille_rectangles(cartes, continent, slugs)
-        formes = contours(*grille, slugs)
         b = cartes[continent]["forever"]
+        grille = grille_aires(zones, cartes, continent, slugs) if zones else grille_image(continent, slugs)
+        formes = contours(*grille, slugs)
+        print(continent, ", ".join("%s %d" % (s, f["surface"]) for s, f in formes.items()))
+        if not zones:
+            controler(continent, grille[0], grille[1], slugs, b)
         resultat[continent] = {}
         for s in slugs:
             if s in formes and formes[s]["polygones"]:
@@ -305,10 +516,9 @@ def main():
                     "surface": 0,
                     "polygones": [],
                 }
-        print(continent, ", ".join("%s %d" % (s, f["surface"]) for s, f in resultat[continent].items()))
     # Une zone par ligne : les différences d'une extraction à l'autre restent lisibles.
     compact = lambda v: json.dumps(v, ensure_ascii=False, separators=(",", ":"))
-    lignes = [compact({"source": "aires" if zones else "rectangles", "taille": [LARGEUR, HAUTEUR]})[:-1] + ',"continents":{']
+    lignes = [compact({"source": "aires" if zones else "image", "taille": [LARGEUR, HAUTEUR]})[:-1] + ',"continents":{']
     for i, (continent, formes) in enumerate(resultat.items()):
         lignes.append(compact(continent) + ":{")
         lignes += [compact(s) + ":" + compact(f) + ("," if j < len(formes) - 1 else "") for j, (s, f) in enumerate(formes.items())]

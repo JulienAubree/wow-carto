@@ -6,14 +6,11 @@ import FormulaireRecherche, { Exemples } from "@/components/FormulaireRecherche"
 import ListeDepliable from "@/components/ListeDepliable";
 import StyleActif from "@/components/StyleActif";
 import ui from "@/components/ui.module.css";
-import { formesContinent } from "@/lib/contours";
+import { CADRAGES, formesContinent } from "@/lib/contours";
 import { listerZones } from "@/lib/queries";
 import { formatNiveaux } from "@/lib/texte";
 import { NOUVELLES_FOREVER, VILLES } from "@/lib/zones";
 import styles from "./accueil.module.css";
-
-// Groupes qui ont une carte de continent dans public/cartes/forever/ (et des formes dans data/forever/contours.json).
-const CARTES_CONTINENTS = new Set(["kalimdor", "royaumes-de-l-est"]);
 
 const ANCRES = [
   { slug: "kalimdor", nom: "Kalimdor" },
@@ -22,8 +19,14 @@ const ANCRES = [
   { slug: "champs-de-bataille", nom: "Champs de bataille" },
 ];
 
-// Sur mobile, la rangée d'ancres est collée sous l'en-tête : elle compte aussi dans la marge de défilement.
-const MARGE_ANCRES = "@media (max-width:720px){html{scroll-padding-top:calc(var(--header-h) + 60px)}}";
+// Sur mobile, la rangée d'ancres est collée sous l'en-tête : elle compte aussi dans la marge de défilement. La
+// recherche de l'en-tête du site ferait doublon avec celle de la page.
+const STYLE_ACCUEIL =
+  "@media (max-width:720px){html{scroll-padding-top:calc(var(--header-h) + 60px)}}.rechercheEntete,.lienRecherche{display:none}";
+
+// Groupes qui ont une carte de continent dans public/cartes/forever/ (et des formes dans data/forever/contours.json).
+const CARTES_CONTINENTS = ANCRES.filter((a) => a.slug in CADRAGES);
+const aUneCarte = (slug: string) => slug in CADRAGES;
 
 const imageContinent = (slug: string) => `/cartes/forever/${slug}.webp`;
 
@@ -67,7 +70,7 @@ function ListeContinent({ continent }: { continent: Continent }) {
   return (
     <section id={continent.slug} className={`${ui.surface} ${styles.continent}`} aria-labelledby={`titre-${continent.slug}`}>
       <h2 id={`titre-${continent.slug}`}>{continent.nom}</h2>
-      {CARTES_CONTINENTS.has(continent.slug) && (
+      {aUneCarte(continent.slug) && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageContinent(continent.slug)} alt="" width={1002} height={668} />
       )}
@@ -85,8 +88,8 @@ function ListeContinent({ continent }: { continent: Continent }) {
   );
 }
 
-// Zones de la carte d'un continent : celles qui y ont une forme, et les villes (repère au centre de leur carte si
-// elles n'ont pas de forme). Les autres sont rendues pour la rangée sous les cartes.
+// Zones de la carte d'un continent : celles qui y ont une forme, et les villes, sans forme (au-dessus du terrain de la
+// zone qui les entoure), qui ont un repère au centre de leur carte. Les autres vont à la rangée sous les cartes.
 function zonesSurCarte(continent: Continent) {
   const formes = formesContinent(continent.slug);
   const surCarte: ZoneSurCarte[] = [];
@@ -112,24 +115,24 @@ function zonesSurCarte(continent: Continent) {
   return { surCarte, horsCarte };
 }
 
-function RangeeHorsCartes({ groupes }: { groupes: { slug: string; titre: string; zones: ZoneListe[] }[] }) {
-  return groupes.map((g) => (
-    <section key={g.slug} className={styles.groupeHorsCartes} aria-labelledby={`hors-cartes-${g.slug}`}>
-      <h2 id={`hors-cartes-${g.slug}`}>{g.titre}</h2>
+// Ancres de la liste qui mènent ici quand elle est repliée (DefilementAncre) : les groupes de ces zones.
+function RangeeHorsCartes({ zones, ancres }: { zones: ZoneListe[]; ancres: string[] }) {
+  return (
+    <nav aria-labelledby="hors-cartes" className={styles.horsCartes} data-ancre={ancres.join(" ")}>
+      <h2 id="hors-cartes">Hors des cartes</h2>
       <ul>
-        {g.zones.map((z) => {
+        {zones.map((z) => {
           const niveaux = formatNiveaux(z.niveauMin, z.niveauMax);
           return (
             <li key={z.slug}>
               <Link href={`/carte/${z.slug}`}>{z.nom}</Link>
-              {NOUVELLES_FOREVER.has(z.slug) && <span className={`${ui.pilule} ${ui.pilulePlus}`}>Nouveau</span>}
               {niveaux && <span className={ui.pilule}>{niveaux}</span>}
             </li>
           );
         })}
       </ul>
-    </section>
-  ));
+    </nav>
+  );
 }
 
 async function Zones() {
@@ -145,28 +148,28 @@ async function Zones() {
   for (const c of continents.values()) {
     c.zones.sort((a, b) => (a.niveauMin ?? Infinity) - (b.niveauMin ?? Infinity) || a.nom.localeCompare(b.nom, "fr"));
   }
-  const principaux = [...continents.values()].filter((c) => CARTES_CONTINENTS.has(c.slug));
-  const autres = [...continents.values()].filter((c) => !CARTES_CONTINENTS.has(c.slug));
+  const principaux = [...continents.values()].filter((c) => aUneCarte(c.slug));
+  const autres = [...continents.values()].filter((c) => !aUneCarte(c.slug));
 
   const cartes = principaux.map((c) => ({ ...c, ...zonesSurCarte(c) }));
-  // Hors des cartes : les zones des continents sans forme (îles à part) rejoignent les autres territoires.
-  const horsCarte = cartes.flatMap((c) => c.horsCarte);
-  const groupes = autres.map((c) => ({ slug: c.slug, titre: c.nom, zones: c.zones }));
-  if (horsCarte.length) {
-    const territoires = groupes.find((g) => g.slug === "autres-territoires");
-    const reunies = [...horsCarte, ...(territoires?.zones ?? [])].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-    if (territoires) territoires.zones = reunies;
-    else groupes.unshift({ slug: "autres-territoires", titre: "Autres territoires", zones: reunies });
-  }
+  // Sous les cartes : les zones des continents qui n'ont pas de forme sur leur carte (îles à part), puis les autres.
+  const horsCartes = [...cartes.flatMap((c) => c.horsCarte), ...autres.flatMap((c) => c.zones)];
 
   return (
     <>
       <div className={styles.cartes}>
         {cartes.map((c) => (
-          <CarteContinent key={c.slug} slug={c.slug} nom={c.nom} image={imageContinent(c.slug)} zones={c.surCarte} />
+          <CarteContinent
+            key={c.slug}
+            slug={c.slug}
+            nom={c.nom}
+            image={imageContinent(c.slug)}
+            cadrage={CADRAGES[c.slug]}
+            zones={c.surCarte}
+          />
         ))}
       </div>
-      <ListeDepliable rangee={<RangeeHorsCartes groupes={groupes} />}>
+      <ListeDepliable rangee={<RangeeHorsCartes zones={horsCartes} ancres={autres.map((c) => c.slug)} />}>
         <div className={styles.continents}>
           {principaux.map((c) => (
             <ListeContinent key={c.slug} continent={c} />
@@ -190,9 +193,15 @@ function SqueletteZones() {
   return (
     <>
       <div className={styles.cartes} aria-hidden="true">
-        {[...CARTES_CONTINENTS].map((slug) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={slug} src={imageContinent(slug)} alt="" width={1002} height={668} className={styles.carteSquelette} />
+        {CARTES_CONTINENTS.map((c) => (
+          <CarteContinent
+            key={c.slug}
+            slug={c.slug}
+            nom={c.nom}
+            image={imageContinent(c.slug)}
+            cadrage={CADRAGES[c.slug]}
+            zones={[]}
+          />
         ))}
       </div>
       <div className={`${styles.continents} ${styles.listeSquelette}`} aria-hidden="true">
@@ -206,10 +215,12 @@ function SqueletteZones() {
 export default function Accueil() {
   return (
     <div className={styles.page}>
-      <StyleActif css={MARGE_ANCRES} />
+      <StyleActif css={STYLE_ACCUEIL} />
       <header className={styles.entetePage}>
         <div className={styles.titre}>
-          <h1>Carte communautaire de WoW: Forever</h1>
+          <h1>
+            Carte communautaire de <span className="insecable">WoW: Forever</span>
+          </h1>
           <p className={styles.accroche}>
             Choisis une zone : ses maîtres de vol et ses entrées de donjons viennent du client du jeu. Les PNJ, les
             herbes, les minerais et les trésors n&apos;y sont pas : les joueurs pourront bientôt les ajouter.
