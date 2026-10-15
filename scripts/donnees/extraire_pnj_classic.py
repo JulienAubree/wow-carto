@@ -75,7 +75,7 @@ def main():
         points.append(point)
 
     points.sort(key=lambda p: (p["zone"], p["categorie"], p["nom"], p["x"], p["y"]))
-    os.makedirs(os.path.dirname(sortie), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(sortie)), exist_ok=True)
     contenu = json.dumps({"source": SOURCE, "points": points}, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     # mtime=0 : le même contenu donne le même fichier, donc la même empreinte à l'import.
     with open(sortie, "wb") as f:

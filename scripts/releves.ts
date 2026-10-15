@@ -16,12 +16,13 @@
 //    - un point confirmé ou ajouté que plus aucune observation ne soutient (envoi écarté) revient à
 //      « à vérifier », caché ; il garde son identifiant si un relevé le confirme à nouveau.
 //    Un groupe ne compte que s'il vient d'un envoi fiable (fichier du dépôt ou membre confirmé) ou
-//    d'au moins deux membres différents. Les points modifiés ou référencés par la communauté ne sont
-//    jamais touchés, et un point masqué par la modération le reste.
+//    d'au moins deux membres différents ; les noms et les titres, que d'envois fiables. Les points
+//    modifiés ou référencés par la communauté ne sont jamais touchés, un point masqué par la modération
+//    le reste, et les zones sans carte (renommées ou retirées) sont laissées telles quelles.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../src/db";
 import { canonique, FICHIER_CLASSIC, lireDonnees, mettreAJourPoints, TOUCHE, type LignePoint } from "./donnees/outils";
 
@@ -66,8 +67,8 @@ export async function importerFichiers() {
     if (deja) continue;
     const doc = JSON.parse(contenu.toString("utf8")) as FichierReleves;
     const observations = doc.observations.filter((o) => zones.has(o.zone));
-    const heures = doc.observations.map((o) => o.t ?? 0).filter((t) => t > 0);
-    const dernier = heures.length ? new Date(Math.max(...heures) * 1000).toISOString() : null;
+    const heure = doc.observations.reduce((max, o) => Math.max(max, o.t ?? 0), 0);
+    const dernier = heure > 0 ? new Date(heure * 1000).toISOString() : null;
 
     await db.transaction(async (tx) => {
       const [envoi] = await tx
@@ -86,7 +87,8 @@ export async function importerFichiers() {
           .values(
             observations.slice(i, i + 1000).map((o) => ({
               envoiId: envoi.id,
-              cle: [o.type, o.role, o.pnj, o.quete ?? "", o.zone, o.x, o.y, o.t ?? ""].join("|"),
+              // Sans l'heure : la même interaction revient d'une copie du fichier à l'autre.
+              cle: [o.type, o.role, o.pnj, o.quete ?? "", o.zone, o.x, o.y].join("|"),
               type: o.type,
               role: o.role,
               pnjId: o.pnj,
@@ -133,27 +135,31 @@ export async function recalculerFiches() {
     });
   }
 
-  // Du plus ancien relevé au plus récent : le dernier nom vu l'emporte, les niveaux s'additionnent.
+  // Envois acceptés et fiables (fichier du dépôt ou membre confirmé), du plus ancien relevé au plus
+  // récent : le dernier nom vu l'emporte, les niveaux vus dans Forever s'additionnent. Ceux de Classic
+  // ne servent que si aucun relevé n'en donne.
   const envois = await db
-    .select({ fiches: schema.envois.fiches })
+    .select({ fiches: schema.envois.fiches, auteurId: schema.envois.auteurId, role: schema.users.role })
     .from(schema.envois)
+    .leftJoin(schema.users, eq(schema.users.id, schema.envois.auteurId))
     .where(eq(schema.envois.statut, "accepte"))
     .orderBy(sql`${schema.envois.resume}->>'dernier' nulls first`, schema.envois.id);
+  const releves = new Map<number, FichePnjVoulue>();
   const quetes = new Map<number, FicheQueteVoulue>();
-  for (const { fiches } of envois) {
+  for (const { fiches, auteurId, role } of envois) {
+    if (auteurId !== null && !ROLES_FIABLES.has(role ?? "")) continue;
     for (const f of (fiches.pnj ?? []) as FichePnj[]) {
-      const avant = pnj.get(f.id);
-      const releve = avant?.source === "releves" ? avant : undefined;
-      pnj.set(f.id, {
+      const avant = releves.get(f.id);
+      releves.set(f.id, {
         id: f.id,
         nom: f.nom,
-        titre: f.titre ?? releve?.titre ?? null,
+        titre: f.titre ?? avant?.titre ?? null,
         faction: f.faction ?? avant?.faction ?? null,
-        niveauMin: f.niveaux ? Math.min(f.niveaux[0], releve?.niveauMin ?? Infinity) : (avant?.niveauMin ?? null),
-        niveauMax: f.niveaux ? Math.max(f.niveaux[1], releve?.niveauMax ?? -Infinity) : (avant?.niveauMax ?? null),
-        classification: f.classification ?? releve?.classification ?? null,
+        niveauMin: f.niveaux ? Math.min(f.niveaux[0], avant?.niveauMin ?? Infinity) : (avant?.niveauMin ?? null),
+        niveauMax: f.niveaux ? Math.max(f.niveaux[1], avant?.niveauMax ?? -Infinity) : (avant?.niveauMax ?? null),
+        classification: f.classification ?? avant?.classification ?? null,
         source: "releves",
-        donnees: { ...releve?.donnees, ...(f.type ? { type: f.type } : {}) },
+        donnees: { ...avant?.donnees, ...(f.type ? { type: f.type } : {}) },
       });
     }
     for (const q of (fiches.quetes ?? []) as FicheQuete[]) {
@@ -168,9 +174,18 @@ export async function recalculerFiches() {
       });
     }
   }
+  for (const [id, r] of releves) {
+    const c = pnj.get(id);
+    const niveaux = r.niveauMin !== null || r.niveauMax !== null;
+    pnj.set(id, {
+      ...r,
+      faction: r.faction ?? c?.faction ?? null,
+      niveauMin: niveaux ? r.niveauMin : (c?.niveauMin ?? null),
+      niveauMax: niveaux ? r.niveauMax : (c?.niveauMax ?? null),
+    });
+  }
 
-  // Seules les fiches qui changent sont écrites. Une fiche que plus rien ne soutient reste (des points
-  // peuvent la référencer), mais aucun point publié ne s'en sert.
+  // Seules les fiches qui changent sont écrites.
   const sansDates = (ligne: { createdAt?: Date; updatedAt?: Date }) => canonique({ ...ligne, createdAt: undefined, updatedAt: undefined });
   const pnjActuels = new Map((await db.select().from(schema.pnj)).map((p) => [p.id, sansDates(p)]));
   const pnjAJour = [...pnj.values()].filter((p) => pnjActuels.get(p.id) !== canonique(p));
@@ -192,6 +207,22 @@ export async function recalculerFiches() {
           updatedAt: sql`now()`,
         },
       });
+  }
+  // Fiches que plus rien ne soutient (envoi écarté) : supprimées, ou vidées si un point y renvoie encore.
+  const orphelins = [...pnjActuels.keys()].filter((id) => !pnj.has(id));
+  let pnjRetires = 0;
+  for (let i = 0; i < orphelins.length; i += 1000) {
+    const paquet = orphelins.slice(i, i + 1000);
+    const supprimes = await db
+      .delete(schema.pnj)
+      .where(and(inArray(schema.pnj.id, paquet), sql`not exists (select 1 from pois where pois.pnj_id = pnj.id)`))
+      .returning({ id: schema.pnj.id });
+    const vides = await db
+      .update(schema.pnj)
+      .set({ nom: sql`'PNJ ' || ${schema.pnj.id}`, titre: null, faction: null, niveauMin: null, niveauMax: null, classification: null, source: "retire", donnees: {}, updatedAt: sql`now()` })
+      .where(and(inArray(schema.pnj.id, paquet), sql`${schema.pnj.source} <> 'retire'`))
+      .returning({ id: schema.pnj.id });
+    pnjRetires += supprimes.length + vides.length;
   }
   const quetesActuelles = new Map((await db.select().from(schema.quetes)).map((q) => [q.id, sansDates(q)]));
   const quetesAJour = [...quetes.values()].filter((q) => quetesActuelles.get(q.id) !== canonique(q));
@@ -215,13 +246,18 @@ export async function recalculerFiches() {
   for (let i = 0; i < quetesRetirees.length; i += 1000) {
     await db.delete(schema.quetes).where(inArray(schema.quetes.id, quetesRetirees.slice(i, i + 1000)));
   }
-  if (pnjAJour.length || quetesAJour.length || quetesRetirees.length) {
-    console.log(`Fiches : ${pnjAJour.length} PNJ et ${quetesAJour.length} quêtes à jour, ${quetesRetirees.length} quêtes retirées.`);
+  if (pnjAJour.length || pnjRetires || quetesAJour.length || quetesRetirees.length) {
+    console.log(
+      `Fiches : ${pnjAJour.length} PNJ et ${quetesAJour.length} quêtes à jour, ${pnjRetires} PNJ et ${quetesRetirees.length} quêtes retirés.`,
+    );
   }
 }
 
 // Nom et description d'un point de Classic avant sa confirmation, gardés dans donnees.classic.
 type DonneesClassic = { nom: string; description: string | null };
+
+// Lancement de Forever : un relevé daté d'avant vient de la bêta.
+const LANCEMENT = new Date("2026-11-04T00:00:00Z");
 
 type Observation = {
   pnjId: number;
@@ -230,11 +266,11 @@ type Observation = {
   y: number;
   role: string;
   queteId: number | null;
-  cle: string;
   vuLe: Date | null;
-  auteurId: number | null;
-  roleAuteur: string | null;
   beta: boolean;
+  // Auteurs des envois qui la contiennent (null : fichier du dépôt), et si l'un d'eux est fiable.
+  auteurs: Set<number | null>;
+  fiable: boolean;
 };
 
 type Groupe = {
@@ -252,6 +288,16 @@ function mediane(valeurs: number[]) {
   return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
 }
 
+function placer(g: Groupe) {
+  g.x = Math.round(mediane(g.observations.map((o) => o.x)) * 100) / 100;
+  g.y = Math.round(mediane(g.observations.map((o) => o.y)) * 100) / 100;
+}
+
+// Ce qu'est le PNJ d'après ce que les joueurs ont fait avec lui ; null si le groupe ne le dit pas.
+function categorieDuGroupe(g: Groupe) {
+  return CATEGORIE_DU_ROLE.find(([role]) => g.observations.some((o) => o.role === role))?.[1] ?? null;
+}
+
 export async function agreger() {
   // Bornes [xMin, yMin, xMax, yMax] de chaque carte dans le monde : la largeur de la carte (x de 0 à 100)
   // couvre yMax - yMin mètres, sa hauteur xMax - xMin (voir scripts/cartes/forever.py).
@@ -263,9 +309,9 @@ export async function agreger() {
       return [z.id, { largeur: (y1 - y0) / 100, hauteur: (x1 - x0) / 100 }];
     }),
   );
+  // Seulement pour une zone de echelle (les autres sont écartées plus bas).
   const distance = (zoneId: number, a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const e = echelle.get(zoneId);
-    if (!e) return Infinity;
+    const e = echelle.get(zoneId)!;
     return Math.hypot((a.x - b.x) * e.largeur, (a.y - b.y) * e.hauteur);
   };
   const categories = new Map((await db.select({ id: schema.categories.id, slug: schema.categories.slug }).from(schema.categories)).map((c) => [c.slug, c.id]));
@@ -290,30 +336,76 @@ export async function agreger() {
     .where(sql`${schema.observations.type} = 'pnj' and ${schema.observations.pnjId} is not null and ${schema.envois.statut} = 'accepte'`)
     .orderBy(sql`${schema.observations.vuLe} nulls last`, schema.observations.id);
 
-  // Une observation envoyée dans plusieurs fichiers ne compte qu'une fois.
-  const vues = new Set<string>();
-  const parPnjEtZone = new Map<string, Groupe[]>();
+  // Une observation envoyée dans plusieurs fichiers ne compte qu'une fois, avec tous ses auteurs. Les
+  // zones sans carte (renommées ou retirées) sont laissées de côté, ainsi que leurs points.
+  const parCle = new Map<string, Observation>();
+  let horsCarte = 0;
   for (const l of lignes) {
-    if (vues.has(l.cle)) continue;
-    vues.add(l.cle);
-    const o = { ...l, pnjId: l.pnjId!, role: l.role ?? "" } as Observation;
+    if (!echelle.has(l.zoneId)) {
+      horsCarte++;
+      continue;
+    }
+    const fiable = l.auteurId === null || ROLES_FIABLES.has(l.roleAuteur ?? "");
+    const deja = parCle.get(l.cle);
+    if (deja) {
+      deja.auteurs.add(l.auteurId);
+      deja.fiable ||= fiable;
+      continue;
+    }
+    parCle.set(l.cle, {
+      pnjId: l.pnjId!,
+      zoneId: l.zoneId,
+      x: l.x,
+      y: l.y,
+      role: l.role ?? "",
+      queteId: l.queteId,
+      vuLe: l.vuLe,
+      beta: l.vuLe ? l.vuLe < LANCEMENT : l.beta,
+      auteurs: new Set([l.auteurId]),
+      fiable,
+    });
+  }
+
+  // Chaque observation rejoint le groupe le plus proche (moins de RAYON de son centre) ; puis les groupes
+  // d'un même PNJ dont les médianes sont à moins de RAYON fusionnent.
+  const parPnjEtZone = new Map<string, Groupe[]>();
+  for (const o of parCle.values()) {
     const cle = `${o.pnjId}|${o.zoneId}`;
-    const groupes = parPnjEtZone.get(cle) ?? [];
-    parPnjEtZone.set(cle, groupes);
-    const groupe = groupes.find((g) => distance(o.zoneId, g, o) <= RAYON);
+    const liste = parPnjEtZone.get(cle) ?? [];
+    parPnjEtZone.set(cle, liste);
+    let groupe: Groupe | undefined;
+    let plusPres = RAYON;
+    for (const g of liste) {
+      const d = distance(o.zoneId, g, o);
+      if (d <= plusPres) [groupe, plusPres] = [g, d];
+    }
     if (groupe) {
       groupe.observations.push(o);
       groupe.x += (o.x - groupe.x) / groupe.observations.length;
       groupe.y += (o.y - groupe.y) / groupe.observations.length;
-    } else groupes.push({ pnjId: o.pnjId, zoneId: o.zoneId, observations: [o], x: o.x, y: o.y });
+    } else liste.push({ pnjId: o.pnjId, zoneId: o.zoneId, observations: [o], x: o.x, y: o.y });
   }
-  const groupes = [...parPnjEtZone.values()].flat().filter((g) => {
-    const auteurs = new Set(g.observations.map((o) => o.auteurId).filter((a) => a !== null));
-    return g.observations.some((o) => o.auteurId === null || ROLES_FIABLES.has(o.roleAuteur ?? "")) || auteurs.size >= 2;
-  });
-  for (const g of groupes) {
-    g.x = Math.round(mediane(g.observations.map((o) => o.x)) * 100) / 100;
-    g.y = Math.round(mediane(g.observations.map((o) => o.y)) * 100) / 100;
+  const groupes: Groupe[] = [];
+  for (const liste of parPnjEtZone.values()) {
+    liste.forEach(placer);
+    for (let fusion = true; fusion; ) {
+      fusion = false;
+      for (let i = 0; i < liste.length && !fusion; i++) {
+        for (let j = i + 1; j < liste.length && !fusion; j++) {
+          if (distance(liste[i].zoneId, liste[i], liste[j]) <= RAYON) {
+            liste[i].observations.push(...liste[j].observations);
+            liste.splice(j, 1);
+            placer(liste[i]);
+            fusion = true;
+          }
+        }
+      }
+    }
+    // Un groupe ne compte que s'il vient d'un envoi fiable ou d'au moins deux membres différents.
+    for (const g of liste) {
+      const auteurs = new Set(g.observations.flatMap((o) => [...o.auteurs]).filter((a) => a !== null));
+      if (g.observations.some((o) => o.fiable) || auteurs.size >= 2) groupes.push(g);
+    }
   }
 
   const idsPnj = [...new Set(groupes.map((g) => g.pnjId))];
@@ -369,23 +461,55 @@ export async function agreger() {
       })
       .from(schema.pois)
       .where(sql`${schema.pois.pnjId} is not null and ${schema.pois.donnees}->>'source' in ('classic', 'releves')`);
-
+    type Existant = (typeof existants)[number];
     const apparies = new Set<number>();
+    const parPnjEtZoneExistants = new Map<string, Existant[]>();
+    for (const p of existants) {
+      if (!echelle.has(p.zoneId)) {
+        apparies.add(p.id);
+        continue;
+      }
+      const cle = `${p.pnjId}|${p.zoneId}`;
+      if (!parPnjEtZoneExistants.has(cle)) parPnjEtZoneExistants.set(cle, []);
+      parPnjEtZoneExistants.get(cle)!.push(p);
+    }
+
+    // Chaque groupe reprend au plus un point existant et chaque point au plus un groupe, les paires les
+    // plus proches d'abord, quel que soit l'ordre des groupes. Un point masqué ou modifié par la
+    // communauté passe avant les autres : il absorbe le groupe sans être changé. Un point des relevés,
+    // placé à la médiane d'observations, est repris par un groupe qui a une observation à moins de
+    // RAYON de lui, si ce groupe aurait pu le créer.
+    const paires: { groupe: number; point: Existant; rang: number; d: number }[] = [];
+    groupes.forEach((g, i) => {
+      const categorie = categorieDuGroupe(g);
+      for (const p of parPnjEtZoneExistants.get(`${g.pnjId}|${g.zoneId}`) ?? []) {
+        let d = distance(g.zoneId, p, g);
+        if (p.donnees.source === "releves") {
+          if (!categorie) continue;
+          for (const o of g.observations) d = Math.min(d, distance(g.zoneId, p, o));
+        }
+        if (d <= RAYON) paires.push({ groupe: i, point: p, rang: p.touche || p.statut === "masque" ? 0 : 1, d });
+      }
+    });
+    paires.sort((a, b) => a.rang - b.rang || a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
+    const choix = new Map<number, Existant>();
+    for (const { groupe, point } of paires) {
+      if (choix.has(groupe) || apparies.has(point.id)) continue;
+      choix.set(groupe, point);
+      apparies.add(point.id);
+    }
+
     const aJour: LignePoint[] = [];
     const aAjouter: (typeof schema.pois.$inferInsert)[] = [];
     let confirmes = 0;
     let ajoutes = 0;
-    for (const g of groupes) {
-      const candidat = existants
-        .filter((p) => p.pnjId === g.pnjId && p.zoneId === g.zoneId && !apparies.has(p.id))
-        .map((p) => ({ p, d: distance(g.zoneId, p, g) }))
-        .filter((c) => c.d <= RAYON)
-        .sort((a, b) => a.d - b.d)[0]?.p;
+    groupes.forEach((g, i) => {
       const nomForever = pnj.get(g.pnjId)?.source === "releves" ? pnj.get(g.pnjId)!.nom : undefined;
+      const categorie = categorieDuGroupe(g);
+      const candidat = choix.get(i);
       if (candidat) {
-        apparies.add(candidat.id);
         const { touche, ...actuel } = candidat;
-        if (touche) continue;
+        if (touche) return;
         const statut = actuel.statut === "masque" ? "masque" : "publie";
         let voulu: LignePoint;
         if (actuel.donnees.source === "classic") {
@@ -399,7 +523,6 @@ export async function agreger() {
             donnees: { ...actuel.donnees, classic, verifie: resume(g) },
           };
         } else {
-          const categorie = CATEGORIE_DU_ROLE.find(([role]) => g.observations.some((o) => o.role === role))?.[1];
           voulu = {
             ...actuel,
             statut,
@@ -413,11 +536,14 @@ export async function agreger() {
         }
         if (actuel.statut === "a_verifier") confirmes++;
         if (canonique(voulu) !== canonique(actuel)) aJour.push(voulu);
-        continue;
+        return;
       }
-      const categorie = CATEGORIE_DU_ROLE.find(([role]) => g.observations.some((o) => o.role === role))?.[1];
       const categorieId = categorie && categories.get(categorie);
-      if (!categorieId || !nomForever) continue;
+      if (!categorieId || !nomForever) return;
+      // Pas de nouveau point près d'un point de ce PNJ masqué par la modération ou modifié par la
+      // communauté : ce serait le même PNJ, qu'on a choisi de cacher ou de décrire autrement.
+      const voisins = parPnjEtZoneExistants.get(`${g.pnjId}|${g.zoneId}`) ?? [];
+      if (voisins.some((p) => (p.touche || p.statut === "masque") && distance(g.zoneId, p, g) <= 2 * RAYON)) return;
       ajoutes++;
       aAjouter.push({
         zoneId: g.zoneId,
@@ -435,7 +561,7 @@ export async function agreger() {
           releves: resume(g),
         },
       });
-    }
+    });
 
     // Points que plus aucun groupe ne soutient : cachés (« à vérifier »), pas supprimés, pour garder leur
     // identifiant (les liens ?poi=) s'ils sont confirmés à nouveau. Un point masqué le reste.
@@ -461,8 +587,9 @@ export async function agreger() {
     await mettreAJourPoints(tx, aJour);
     for (let i = 0; i < aAjouter.length; i += 1000) await tx.insert(schema.pois).values(aAjouter.slice(i, i + 1000));
     console.log(
-      `Relevés : ${vues.size} observations, ${groupes.length} PNJ placés ; ${confirmes} points confirmés, ` +
-        `${ajoutes} points ajoutés, ${aJour.length} mis à jour, ${retires} remis à vérifier.`,
+      `Relevés : ${parCle.size} observations, ${groupes.length} PNJ placés ; ${confirmes} points confirmés, ` +
+        `${ajoutes} points ajoutés, ${aJour.length} mis à jour, ${retires} remis à vérifier` +
+        (horsCarte ? ` ; ${horsCarte} observations dans des zones sans carte, laissées de côté.` : "."),
     );
   });
 }

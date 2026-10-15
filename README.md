@@ -20,7 +20,7 @@ npm install
 cp .env.example .env          # puis renseigner DATABASE_URL
 set -a; . ./.env; set +a
 npm run db:migrate            # crée les tables
-npm run db:import-classic     # 54 zones, catégories et 90 points
+npm run db:import-classic     # 54 zones, catégories, 90 points et 2 895 PNJ de Classic cachés
 npm run dev                   # http://localhost:3000
 ```
 
@@ -30,7 +30,7 @@ Autres commandes : `npm run typecheck`, `npm run lint`, `npm run db:generate` (a
 
 | Chemin | Rôle |
 |---|---|
-| `src/db/schema.ts` | Schéma : zones, catégories, points, révisions, contributions, signalements, confirmations, utilisateurs |
+| `src/db/schema.ts` | Schéma : zones, catégories, points, PNJ, quêtes, relevés en jeu (envois, observations), révisions, contributions, signalements, confirmations, utilisateurs |
 | `src/lib/coords.ts`, `src/lib/monde.ts` | Conversion coordonnées du jeu ↔ monde ↔ Leaflet, place de chaque zone dans le monde |
 | `src/components/ZoneMap.tsx` | Carte Leaflet : vue terrain ou carte du jeu, marqueurs, filtres par catégorie, coordonnées sous le curseur |
 | `src/app/carte/[zone]` | Page d'une zone ; `?poi=123` ouvre directement un point |
@@ -42,7 +42,10 @@ Autres commandes : `npm run typecheck`, `npm run lint`, `npm run db:generate` (a
 | `data/forever/cartes.json` | Position de chaque carte dans le monde : place la zone sur la vue terrain et les points du client sur leur carte |
 | `data/forever/terrain.json` | Étendue des tuiles de la vue terrain |
 | `data/forever/client.json` | Points lus dans les tables du client de WoW: Forever : nœuds de vol et entrées de donjons et de raids |
-| `scripts/importer-classic.ts` | Import des zones, catégories et points dans la base |
+| `data/classic/pnj.json.gz` | PNJ fixes de WoW Classic (donneurs de quêtes, marchands, services), importés « à vérifier » : cachés tant qu'un relevé en jeu ne les confirme pas |
+| `data/releves/` | Relevés en jeu (addon ForeverBeacon), un fichier par séance ; voir son `README.md` |
+| `scripts/importer-classic.ts` | Import des zones, catégories, points et relevés dans la base |
+| `scripts/releves.ts` | Relevés en jeu : fiches des PNJ et des quêtes, confirmation des PNJ de Classic, nouveaux PNJ |
 | `scripts/cartes/`, `scripts/donnees/` | Extraction des cartes depuis le client du jeu et régénération des points |
 | `deploy/` | PM2, Caddy et script de mise à jour pour Exilium |
 
@@ -64,8 +67,10 @@ Une seule fois :
 | Vue terrain (minimap vue de dessus) | Textures de minimap du client WoW: Forever 1.60.1, lues sur un client installé | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Cartes des zones et continents, en français | Textures et tables de la carte du monde du client WoW: Forever 1.60.1 frFR, lues sur un client installé (tables `UiMap…` et `WorldMapOverlay…` du même build publiées par [wago.tools](https://wago.tools)) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
 | Nœuds de vol, entrées de donjons et de raids | Tables `TaxiNodes`, `Map`, `AreaTable` et `UiMapAssignment` du client WoW: Forever 1.60.1 frFR, lues sur un client installé (structure des tables d'après [WoWDBDefs](https://github.com/wowdev/WoWDBDefs), téléchargée à l'extraction et non redistribuée) | © Blizzard Entertainment, usage toléré pour les sites de fans non commerciaux |
+| PNJ de Classic « à vérifier » (positions et noms de Classic 1.12) | Base de l'addon [pfQuest](https://github.com/shagu/pfQuest), données [VMaNGOS](https://github.com/vmangos/core) ; voir `data/classic/NOTICE.md` | MIT (pfQuest) ; publiés seulement une fois confirmés en jeu |
+| PNJ et quêtes vus dans Forever | Relevés en jeu avec l'addon [ForeverBeacon](https://github.com/Thunderz96/forever-addon-kit) (MIT), sans nom de personnage ni de royaume | © Blizzard Entertainment pour les noms du jeu |
 
-Le client du jeu ne contient que ce qui s'affiche sans le serveur : les nœuds de vol de Forever (y compris ceux du Mont Hyjal et des Rives Claires) et les entrées des donjons et des raids de Classic, sauf Naxxramas, en viennent (`donnees.source = "client"`). Les PNJ, les herbes, les minerais et les coffres sont envoyés par le serveur : ils viendront des contributions, comme les maîtres de métier et de classe et les entrées de Naxxramas et des nouvelles instances. L'Île de Zéphras, les Îles des Sombrelances et Shen'dralas n'ont encore aucun point.
+Le client du jeu ne contient que ce qui s'affiche sans le serveur : les nœuds de vol de Forever (y compris ceux du Mont Hyjal et des Rives Claires) et les entrées des donjons et des raids de Classic, sauf Naxxramas, en viennent (`donnees.source = "client"`). Les PNJ, les herbes, les minerais et les coffres sont envoyés par le serveur : ils viennent des relevés en jeu (`data/releves/`) et viendront des contributions, comme les entrées de Naxxramas et des nouvelles instances. Les PNJ fixes de Classic sont importés cachés et publiés quand un relevé les voit à leur place ; un PNJ vu ailleurs ou absent de Classic devient un nouveau point. L'Île de Zéphras, les Îles des Sombrelances et Shen'dralas n'ont encore aucun point.
 
 Extraire à nouveau les cartes et régénérer les points : voir `scripts/cartes/README.md`.
 
