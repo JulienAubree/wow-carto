@@ -4,7 +4,7 @@ import { AncresContinents, DefilementAncre } from "@/components/Ancres";
 import FormulaireRecherche, { Exemples } from "@/components/FormulaireRecherche";
 import StyleActif from "@/components/StyleActif";
 import ui from "@/components/ui.module.css";
-import { compterPointsCartographies, listerZones } from "@/lib/queries";
+import { listerZones } from "@/lib/queries";
 import { formatNiveaux } from "@/lib/texte";
 import { NOUVELLES_FOREVER } from "@/lib/zones";
 import styles from "./accueil.module.css";
@@ -38,16 +38,13 @@ function nomInsecable(nom: string) {
   );
 }
 
-function LigneZone({ zone, nbPoints, pastilleNouveau }: { zone: ZoneListe; nbPoints: number; pastilleNouveau: boolean }) {
+function LigneZone({ zone, pastilleNouveau }: { zone: ZoneListe; pastilleNouveau: boolean }) {
   const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
   const nouvelle = NOUVELLES_FOREVER.has(zone.slug);
   return (
     <li>
       <Link href={`/carte/${zone.slug}`} className={styles.ligneZone}>
-        <span className={styles.nomZone}>
-          {nomInsecable(zone.nom)}
-          {nouvelle && nbPoints === 0 && <small>à cartographier</small>}
-        </span>
+        <span className={styles.nomZone}>{nomInsecable(zone.nom)}</span>
         {nouvelle && pastilleNouveau && <span className={`${ui.pilule} ${ui.pilulePlus}`}>Nouveau</span>}
         {niveaux && <span className={ui.pilule}>{niveaux}</span>}
       </Link>
@@ -55,7 +52,7 @@ function LigneZone({ zone, nbPoints, pastilleNouveau }: { zone: ZoneListe; nbPoi
   );
 }
 
-function CarteContinent({ continent, points }: { continent: Continent; points: Map<string, number> }) {
+function CarteContinent({ continent }: { continent: Continent }) {
   // Zones à niveaux, villes et sanctuaires, puis les zones ajoutées par Forever.
   const groupes = [
     { titre: "Zones", zones: continent.zones.filter((z) => z.niveauMin != null && !NOUVELLES_FOREVER.has(z.slug)) },
@@ -74,7 +71,7 @@ function CarteContinent({ continent, points }: { continent: Continent; points: M
           {groupes.length > 1 && <h3 className={styles.intertitre}>{g.titre}</h3>}
           <ul>
             {g.zones.map((z) => (
-              <LigneZone key={z.slug} zone={z} nbPoints={points.get(z.slug) ?? 0} pastilleNouveau={groupes.length === 1} />
+              <LigneZone key={z.slug} zone={z} pastilleNouveau={groupes.length === 1} />
             ))}
           </ul>
         </div>
@@ -84,7 +81,7 @@ function CarteContinent({ continent, points }: { continent: Continent; points: M
 }
 
 async function ListeZones() {
-  const [zones, points] = await Promise.all([listerZones(), compterPointsCartographies()]);
+  const zones = await listerZones();
   if (zones.length === 0) return <p>Aucune zone pour l&apos;instant.</p>;
   const continents = new Map<string, Continent>();
   for (const z of zones) {
@@ -101,12 +98,12 @@ async function ListeZones() {
   return (
     <div className={styles.continents}>
       {principaux.map((c) => (
-        <CarteContinent key={c.slug} continent={c} points={points} />
+        <CarteContinent key={c.slug} continent={c} />
       ))}
       {autres.length > 0 && (
         <div className={styles.autres}>
           {autres.map((c) => (
-            <CarteContinent key={c.slug} continent={c} points={points} />
+            <CarteContinent key={c.slug} continent={c} />
           ))}
         </div>
       )}
@@ -131,19 +128,12 @@ export default function Accueil() {
       <header className={styles.entetePage}>
         <h1>Carte communautaire de WoW: Forever</h1>
         <p className={styles.accroche}>
-          Maîtres de vol et entrées de donjons de chaque zone, en attendant les ajouts des joueurs. Choisis une zone ou
-          cherche un nom.
+          Les cartes et les points viennent du client français de WoW: Forever : pour l&apos;instant les maîtres de vol et
+          les entrées de donjons. Les PNJ, les herbes, les minerais et les trésors ne sont pas dans les fichiers du jeu :
+          les joueurs pourront bientôt les ajouter.
         </p>
         <FormulaireRecherche id="recherche-accueil" />
         <Exemples />
-        <details className={`${ui.encart} ${styles.provenance}`}>
-          <summary>D&apos;où viennent les données ?</summary>
-          <p>
-            Les cartes et les points viennent du client français de WoW: Forever : pour l&apos;instant les maîtres de
-            vol et les entrées de donjons. Les PNJ, les herbes, les minerais et les trésors ne sont pas dans les fichiers
-            du jeu : les joueurs pourront bientôt les ajouter.
-          </p>
-        </details>
       </header>
       <AncresContinents ancres={ANCRES} className={styles.ancres} />
       <Suspense fallback={<SqueletteContinents />}>

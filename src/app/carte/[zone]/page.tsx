@@ -8,7 +8,8 @@ import StyleActif from "@/components/StyleActif";
 import ZoneMapLoader from "@/components/ZoneMapLoader";
 import ZoneSquelette from "@/components/ZoneSquelette";
 import ui from "@/components/ui.module.css";
-import { chargerZone, etiquettesVoisines, nomPoi, resumeZone } from "@/lib/queries";
+import { nombreDeType } from "@/lib/categories";
+import { chargerZone, compterPoints, etiquettesVoisines, nomPoi, resumeZone } from "@/lib/queries";
 import { OPEN_GRAPH } from "@/lib/site";
 import { formatNiveaux } from "@/lib/texte";
 import type { ZoneCarte } from "@/lib/types";
@@ -32,11 +33,17 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/car
   if (!zone) return { title: "Zone introuvable" };
   const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
   const id = idPoi(poi);
-  const point = id ? await nomPoi(id, zone.id) : null;
+  const [point, comptes] = await Promise.all([id ? nomPoi(id, zone.id) : null, compterPoints(zone.id)]);
+  // « 2 maîtres de vol et 1 entrée de donjon » : l'aperçu d'un lien partagé ne promet que ce que la zone contient.
+  const contenu = comptes.length
+    ? new Intl.ListFormat("fr", { type: "conjunction" }).format(
+        comptes.map((c) => nombreDeType(c.nombre, c.categorieSlug, c.categorieNom, c.role ?? undefined)),
+      )
+    : "pas encore de point dans cette zone, les joueurs pourront bientôt en ajouter";
   return {
     title: point ? `${point} · ${zone.nom}` : zone.nom,
-    description: `Carte de ${zone.nom}${niveaux ? ` (niv. ${niveaux})` : ""} : donneurs de quêtes, maîtres de vol, monstres rares, minerais, herbes et trésors.`,
-    openGraph: { ...OPEN_GRAPH, images: [{ url: zone.carteUrl, width: 1002, height: 668, alt: `Carte de ${zone.nom}` }] },
+    description: `${zone.nom}${niveaux ? ` (niveaux ${niveaux})` : ""} sur la carte communautaire de WoW: Forever : ${contenu}.`,
+    openGraph: { ...OPEN_GRAPH, images: [{ url: zone.carteUrl, width: 1002, height: 668, alt: `Carte : ${zone.nom}` }] },
     alternates: { canonical: `/carte/${zone.slug}` },
   };
 }
@@ -97,7 +104,6 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
         key={`${slug}-${q ?? ""}`}
         {...donnees}
         etiquettes={etiquettes}
-        genre={genreZone(slug)}
         poiInitial={idPoi(recherche.poi)}
         rechercheInitiale={q}
       />

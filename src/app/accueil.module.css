@@ -21,22 +21,6 @@
   max-width: 60ch;
 }
 
-.provenance {
-  max-width: 560px;
-  padding: var(--space-2) var(--space-3);
-  color: var(--c-text-muted);
-}
-
-.provenance summary {
-  color: var(--c-text);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.provenance p {
-  margin-top: var(--space-2);
-}
-
 /* Ancres des continents, collées sous l'en-tête (mobile seulement). */
 .ancres {
   display: none;
@@ -165,12 +149,6 @@
   flex: 1;
   min-width: 0;
   line-height: 1.25;
-}
-
-.nomZone small {
-  display: block;
-  color: var(--c-text-muted);
-  font-size: var(--fs-xs);
 }
 
 .ligneZone > span:not(.nomZone) {

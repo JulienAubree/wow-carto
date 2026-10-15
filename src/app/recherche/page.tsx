@@ -6,7 +6,7 @@ import { Pastille } from "@/components/IconeCategorie";
 import StyleActif from "@/components/StyleActif";
 import ZonesRepliables from "@/components/ZonesRepliables";
 import ui from "@/components/ui.module.css";
-import { TYPE_SINGULIER } from "@/lib/categories";
+import { FACTIONS, typePoi } from "@/lib/categories";
 import { listerZones, rechercher } from "@/lib/queries";
 import { formatNiveaux, normaliser } from "@/lib/texte";
 import type { ResultatRecherche } from "@/lib/types";
@@ -18,8 +18,23 @@ const SANS_RECHERCHE_ENTETE = ".rechercheEntete,.lienRecherche{display:none}";
 // Au-delà, sur mobile, les zones d'un même nom sont repliées.
 const ZONES_VISIBLES = 6;
 
+// Sans caractères de contrôle : un octet nul ferait échouer la requête.
 function texteRecherche(q: string | string[] | undefined) {
-  return typeof q === "string" ? q.trim().slice(0, 80) : "";
+  return typeof q === "string" ? q.replace(/\p{Cc}/gu, "").trim().slice(0, 80) : "";
+}
+
+// Mots qui désignent un type de lieu, pas un nom : la recherche ne porte que sur les noms.
+const MOTS_TYPES = new Set(
+  "maitre maitres vol vols noeud noeuds nœud nœuds donjon donjons raid raids entree entrees instance instances".split(" "),
+);
+const MOTS_VIDES = new Set("de du des d la le les l et ou un une".split(" "));
+
+// « maître de vol », « entrées de raid » : seulement des mots de type.
+function chercheUnType(texte: string) {
+  const mots = normaliser(texte)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((m) => m && !MOTS_VIDES.has(m));
+  return mots.length > 0 && mots.every((m) => MOTS_TYPES.has(m));
 }
 
 export async function generateMetadata({ searchParams }: PageProps<"/recherche">): Promise<Metadata> {
@@ -36,6 +51,7 @@ type Groupe = {
   categorieNom: string;
   icone: string;
   couleur: string;
+  role: string | null;
   total: number;
   zones: ResultatRecherche[];
 };
@@ -47,7 +63,8 @@ function regrouper(resultats: ResultatRecherche[]) {
     const cle = `${r.nom}\u0000${r.categorieSlug}`;
     let g = groupes.get(cle);
     if (!g) {
-      g = { nom: r.nom, categorieSlug: r.categorieSlug, categorieNom: r.categorieNom, icone: r.icone, couleur: r.couleur, total: 0, zones: [] };
+      const { nom, categorieSlug, categorieNom, icone, couleur, role } = r;
+      g = { nom, categorieSlug, categorieNom, icone, couleur, role, total: 0, zones: [] };
       groupes.set(cle, g);
     }
     g.total += r.nombre;
@@ -77,18 +94,30 @@ function LienZone({ g, z, enPlus = false }: { g: Groupe; z: ResultatRecherche; e
   );
 }
 
+// « Alliance et Horde », « Horde » ; rien pour les neutres.
+function nomsFactions(factions: string[]) {
+  return ["alliance", "horde"]
+    .filter((f) => factions.includes(f))
+    .map((f) => FACTIONS[f])
+    .join(" et ");
+}
+
 function GroupePoints({ g }: { g: Groupe }) {
-  const type = TYPE_SINGULIER[g.categorieSlug] ?? g.categorieNom;
-  const seul = g.zones.length === 1 && g.total === 1 ? g.zones[0] : null;
-  if (seul) {
+  const type = typePoi(g.categorieSlug, g.categorieNom, g.role ?? undefined);
+  // Une seule zone : une ligne, vers la fiche, ou vers la zone filtrée sur ce nom (paire Alliance et Horde).
+  if (g.zones.length === 1) {
+    const z = g.zones[0];
+    const factions = nomsFactions(z.factions);
+    const href = z.nombre === 1 ? `/carte/${z.zoneSlug}?poi=${z.premierId}` : `/carte/${z.zoneSlug}?q=${encodeURIComponent(g.nom)}`;
     return (
       <li>
-        <Link href={`/carte/${seul.zoneSlug}?poi=${seul.premierId}`} className={styles.ligneSeule}>
+        <Link href={href} className={styles.ligneSeule}>
           <Pastille slug={g.categorieSlug} icone={g.icone} couleur={g.couleur} />
           <span className={styles.texteLigne}>
             <strong>{g.nom}</strong>
             <span className={styles.details}>
-              {type} · {seul.zoneNom}
+              {type} · {z.zoneNom}
+              {factions && ` · ${factions}`}
             </span>
           </span>
           <span className={styles.chevron} aria-hidden="true">
@@ -107,8 +136,7 @@ function GroupePoints({ g }: { g: Groupe }) {
         <span className={styles.texteLigne}>
           <strong>{g.nom}</strong>
           <span className={styles.details}>
-            {type} · {pluriel(g.total, "emplacement")}
-            {g.zones.length > 1 ? ` dans ${nombre(g.zones.length)} zones` : ` à ${g.zones[0].zoneNom}`}
+            {type} · {pluriel(g.total, "emplacement")} dans {nombre(g.zones.length)} zones
           </span>
         </span>
       </div>
@@ -131,7 +159,14 @@ function SansResultat({ texte }: { texte: string }) {
   return (
     <div className={styles.vide}>
       <p className={styles.titreVide}>Rien trouvé pour « {texte} ».</p>
-      <p>Les points viennent de WoW Classic 1.12 : un PNJ propre à Forever n&apos;y est peut-être pas encore.</p>
+      {chercheUnType(texte) ? (
+        <p>La recherche porte sur les noms : tape celui d&apos;un donjon, d&apos;un maître de vol ou d&apos;une zone.</p>
+      ) : (
+        <p>
+          Pour l&apos;instant, seuls les maîtres de vol et les entrées de donjons sont placés. Les PNJ, les herbes, les
+          minerais et les trésors ne sont pas dans les fichiers du jeu : les joueurs pourront bientôt les ajouter.
+        </p>
+      )}
       <Exemples />
       <p>
         <Link href="/">Parcourir toutes les zones</Link>
@@ -141,10 +176,11 @@ function SansResultat({ texte }: { texte: string }) {
 }
 
 async function ListeResultats({ texte }: { texte: string }) {
+  // Sans texte (loupe de l'en-tête sur mobile) : des exemples, pas une erreur.
   if (texte.length < 2) {
     return (
       <div className={styles.vide}>
-        <p>Tape au moins deux lettres.</p>
+        {texte && <p>Tape au moins deux lettres.</p>}
         <Exemples />
       </div>
     );
@@ -188,6 +224,7 @@ async function ListeResultats({ texte }: { texte: string }) {
             {resultats.length >= 200
               ? "200 premiers résultats : précise ta recherche."
               : `${pluriel(groupes.length, "nom")}, ${pluriel(emplacements, "emplacement")}`}
+            {chercheUnType(texte) && ` · la recherche porte sur les noms : seuls ceux qui contiennent « ${texte} » sont listés.`}
           </p>
           <ul className={styles.liste}>
             {groupes.map((g) => (

@@ -29,6 +29,8 @@
   --map-cluster-bg: rgb(26 20 9 / 0.82);
   --map-cluster-text: #fbf3e0;
   --map-chip: rgb(20 18 14 / 0.8); /* coordonnées, survol des étiquettes */
+  --map-alliance: #2a5cb8; /* encoche de faction des marqueurs */
+  --map-horde: #c0352b;
 
   /* Typographie */
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
@@ -57,7 +59,7 @@
   --radius-pill: 999px;
   --header-h: 52px;
   --zonebar-h: 48px;
-  --sheet-peek: 128px; /* hauteur du sheet mobile fermé (mesurée par la carte, ceci pour le squelette) */
+  --sheet-peek: 76px; /* hauteur du sheet mobile fermé (mesurée par la carte, ceci pour le squelette) */
   --duree: 120ms;
 }
 
@@ -182,7 +184,9 @@ textarea {
   *,
   ::before,
   ::after {
-    transition-duration: 0.01ms !important;
+    /* Aucune transition, même brève : Leaflet rend la fiche visible juste avant d'y mettre le focus, et une
+       transition de visibility la laisserait encore cachée à cet instant (focus perdu, Échap sans effet). */
+    transition: none !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;

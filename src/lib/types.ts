@@ -63,4 +63,7 @@ export type ResultatRecherche = {
   couleur: string;
   nombre: number;
   premierId: number;
+  // Rôle (entrée de donjon ou de raid) et factions des emplacements de cette zone.
+  role: string | null;
+  factions: string[];
 };

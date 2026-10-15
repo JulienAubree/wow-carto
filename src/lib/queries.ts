@@ -1,4 +1,4 @@
-import { asc, eq, and, sql } from "drizzle-orm";
+import { asc, desc, eq, and, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { bornesZone, mondeZone } from "./monde";
 import { formatNiveaux, normaliser } from "./texte";
@@ -19,24 +19,6 @@ export async function listerZones() {
     .from(schema.zones)
     .leftJoin(schema.continents, eq(schema.zones.continentId, schema.continents.id))
     .orderBy(asc(schema.continents.ordre), sql`${schema.zones.niveauMin} asc nulls last`, asc(schema.zones.nom));
-}
-
-// Nombre de points publiés par zone (slug), hors maîtres de vol : ceux-là sont relevés dans le client du jeu
-// pour toutes les zones, une nouvelle zone qui n'a qu'eux reste à cartographier.
-export async function compterPointsCartographies() {
-  const lignes = await db
-    .select({ slug: schema.zones.slug, nombre: sql<number>`count(${schema.pois.id})::int` })
-    .from(schema.zones)
-    .leftJoin(
-      schema.pois,
-      and(
-        eq(schema.pois.zoneId, schema.zones.id),
-        eq(schema.pois.statut, "publie"),
-        sql`${schema.pois.categorieId} not in (select ${schema.categories.id} from ${schema.categories} where ${schema.categories.slug} = 'maitre-vol')`,
-      ),
-    )
-    .groupBy(schema.zones.slug);
-  return new Map(lignes.map((l) => [l.slug, l.nombre]));
 }
 
 const COLONNES_ZONE = {
@@ -69,6 +51,19 @@ export async function nomPoi(id: number, zoneId: number) {
     .from(schema.pois)
     .where(and(eq(schema.pois.id, id), eq(schema.pois.zoneId, zoneId), eq(schema.pois.statut, "publie")));
   return poi?.nom ?? null;
+}
+
+// Points publiés d'une zone, comptés par catégorie et par rôle (description de la page).
+export async function compterPoints(zoneId: number) {
+  const role = sql<string | null>`${schema.pois.donnees}->>'role'`;
+  const nombre = sql<number>`count(*)::int`;
+  return db
+    .select({ categorieSlug: schema.categories.slug, categorieNom: schema.categories.nom, role, nombre })
+    .from(schema.pois)
+    .innerJoin(schema.categories, eq(schema.pois.categorieId, schema.categories.id))
+    .where(and(eq(schema.pois.zoneId, zoneId), eq(schema.pois.statut, "publie")))
+    .groupBy(schema.categories.slug, schema.categories.nom, schema.categories.ordre, role)
+    .orderBy(asc(schema.categories.ordre), desc(nombre));
 }
 
 export async function chargerZone(
@@ -170,9 +165,10 @@ export async function etiquettesVoisines(slug: string): Promise<EtiquetteZone[]>
   });
 }
 
-// Accents retirés côté base (sans extension) et côté requête : « acierite » trouve « Aciérite ».
-const ACCENTS = "àâäáãåçéèêëíìîïñóòôöõúùûüýÿ";
-const SANS_ACCENTS = "aaaaaaceeeeiiiinooooouuuuyy";
+// Accents retirés et apostrophes unifiées côté base (sans extension) comme côté requête (normaliser) : « eternite »
+// trouve « Sommet d’Éternité », « rog'mar » trouve « Rog’mar ».
+const ACCENTS = "àâäáãåçéèêëíìîïñóòôöõúùûüýÿ’‘ʼ";
+const SANS_ACCENTS = "aaaaaaceeeeiiiinooooouuuuyy'''";
 
 // Recherche par nom, regroupée par zone : « Gadgetzan » donne une ligne par zone avec le nombre d'emplacements.
 // Les noms exacts d'abord, puis ceux qui commencent par le texte, puis les autres.
@@ -192,6 +188,8 @@ export async function rechercher(texte: string): Promise<ResultatRecherche[]> {
       couleur: schema.categories.couleur,
       nombre: sql<number>`count(*)::int`,
       premierId: sql<number>`min(${schema.pois.id})::int`,
+      role: sql<string | null>`min(${schema.pois.donnees}->>'role')`,
+      factions: sql<string[]>`array_remove(array_agg(distinct ${schema.pois.donnees}->>'faction'), null)`,
     })
     .from(schema.pois)
     .innerJoin(schema.zones, eq(schema.pois.zoneId, schema.zones.id))

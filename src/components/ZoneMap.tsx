@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import L from "leaflet";
 import "@/lib/leaflet-global";
 import "leaflet.markercluster";
@@ -20,7 +20,7 @@ import {
   limitesMonde,
   mondeVersJeu,
 } from "@/lib/coords";
-import { MASQUEES_PAR_DEFAUT, TYPE_SINGULIER, typePoi } from "@/lib/categories";
+import { CATEGORIES_CLIENT, FACTIONS, MASQUEES_PAR_DEFAUT, SEUIL_MASQUAGE, nombreDeType, typePoi } from "@/lib/categories";
 import { echapper, normaliser } from "@/lib/texte";
 import type { CategorieCarte, EtiquetteZone, PoiCarte, ZoneCarte } from "@/lib/types";
 import { Pastille } from "./IconeCategorie";
@@ -33,7 +33,6 @@ type Props = {
   categories: CategorieCarte[];
   pois: PoiCarte[];
   etiquettes?: EtiquetteZone[];
-  genre?: "nouvelle" | "ville" | null;
   poiInitial?: number;
   rechercheInitiale?: string;
 };
@@ -41,10 +40,12 @@ type Props = {
 type Faction = "toutes" | "alliance" | "horde";
 type Vue = "terrain" | "parchemin";
 
-const FACTIONS: Record<string, string> = { alliance: "Alliance", horde: "Horde", neutre: "Neutre" };
-
 // Liste de résultats sous le champ de recherche : seulement quand elle reste courte.
 const RESULTATS_MAX = 8;
+// En deçà, pas de recherche dans la zone : la liste des catégories suffit.
+const RECHERCHE_MIN = 10;
+// Rayon des grappes d'une zone qui a peu de points : seuls ceux qui se chevauchent se regroupent.
+const PEU_DE_POINTS = 40;
 
 function lire(cle: string) {
   try {
@@ -68,10 +69,14 @@ const aSurvol = () => matchMedia("(hover: hover)").matches;
 // « 42.4 69.2 » : coordonnées de la commande /way.
 const coordsWay = (x: number, y: number) => `${x.toFixed(1)} ${y.toFixed(1)}`;
 
-function icone(cat: CategorieCarte) {
+// Faction d'un point qui en a une (Alliance ou Horde) : les neutres n'en affichent pas.
+const factionDe = (p: PoiCarte) => (p.donnees.faction === "alliance" || p.donnees.faction === "horde" ? p.donnees.faction : null);
+
+// Marqueur d'une catégorie, avec l'encoche de la faction du point.
+function icone(cat: CategorieCarte, faction: string | null) {
   return L.divIcon({
     className: styles.marqueur,
-    html: `<span aria-hidden="true" style="--cat:${echapper(cat.couleur)}">${svgCategorie(cat.slug, cat.icone)}</span>`,
+    html: `<span aria-hidden="true" style="--cat:${echapper(cat.couleur)}"${faction ? ` data-faction="${faction}"` : ""}>${svgCategorie(cat.slug, cat.icone)}</span>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
     popupAnchor: [0, -10],
@@ -88,24 +93,21 @@ function boutonsCopie(way: string, id?: number) {
   );
 }
 
+// La description (ce que désignent les coordonnées d'une entrée de donjon) passe avant les boutons de copie ; la
+// provenance du point ferme la fiche.
 function fiche(p: PoiCarte, cat: CategorieCarte, type: string) {
   const d = p.donnees;
+  const faction = factionDe(p);
   const puces = [`<li class="${ui.pilule}">${echapper(type)}</li>`];
-  if (d.faction === "alliance" || d.faction === "horde") {
-    puces.push(`<li class="${ui.pilule} ${styles.faction}" data-faction="${d.faction}">${FACTIONS[d.faction]}</li>`);
-  } else if (d.faction === "neutre") {
-    puces.push(`<li class="${ui.pilule}">Neutre</li>`);
-  }
-  const description = p.description ? `<p class="${styles.descriptionFiche}">${echapper(p.description)}</p>` : "";
+  if (faction) puces.push(`<li class="${ui.pilule} ${styles.faction}" data-faction="${faction}">${FACTIONS[faction]}</li>`);
+  else if (d.faction === "neutre") puces.push(`<li class="${ui.pilule}">Neutre</li>`);
   return (
     `<div data-titre="${echapper(`Fiche : ${p.nom}`)}">` +
     `<header class="${styles.teteFiche}"><span class="${ui.pastille}" style="--cat:${echapper(cat.couleur)}">${svgCategorie(cat.slug, cat.icone)}</span><h3>${echapper(p.nom)}</h3></header>` +
     `<ul class="${styles.puces}">${puces.join("")}</ul>` +
+    (p.description ? `<p>${echapper(p.description)}</p>` : "") +
     boutonsCopie(`/way ${coordsWay(p.x, p.y)} ${p.nom}`, p.id) +
-    (d.source === "client"
-      ? `<p class="${ui.pilule} ${styles.position}" title="Position relevée dans les fichiers du jeu de WoW: Forever">Position de Forever</p>`
-      : "") +
-    description +
+    (d.source === "client" ? `<p class="${styles.source}">Relevé dans les fichiers du jeu</p>` : "") +
     `</div>`
   );
 }
@@ -140,13 +142,28 @@ function etiquette(e: EtiquetteZone) {
   });
 }
 
-// Icône d'une grappe ; son nom accessible porte aussi le résumé affiché au survol.
-function clusterIcone(groupe: L.MarkerCluster, resume: string[]) {
+// Options propres aux marqueurs des points, lues par les grappes.
+type OptionsPoint = L.MarkerOptions & { categorieId: number; role?: string; libelle: string };
+const optionsPoint = (m: L.Marker) => m.options as OptionsPoint;
+
+// Icône d'une grappe ; son nom accessible porte aussi le résumé affiché au survol. Une grappe d'une seule catégorie
+// (souvent les maîtres de vol Alliance et Horde d'un même lieu) est une pile de marqueurs de cette catégorie.
+function clusterIcone(groupe: L.MarkerCluster, resume: string[], seule: CategorieCarte | undefined) {
   const n = groupe.getChildCount();
+  // Avec les noms (« 1 maître de vol : La Croisée »), les types se séparent par des points-virgules.
+  const detail = resume.join(resume.some((r) => r.includes(" : ")) ? " ; " : ", ").replace(", …", " et autres");
+  if (seule) {
+    return L.divIcon({
+      html:
+        `<span class="${styles.pile}" aria-hidden="true" style="--cat:${echapper(seule.couleur)}">${svgCategorie(seule.slug, seule.icone)}<span>${n}</span></span>` +
+        `<span class="sr-only">${echapper(`${detail}. Entrée ou Espace pour zoomer`)}</span>`,
+      className: styles.groupe,
+      iconSize: [24, 24],
+    });
+  }
   const taille = n < 10 ? 30 : n < 100 ? 36 : 42;
-  const detail = resume.length ? ` : ${resume.join(", ").replace(", …", " et autres")}` : "";
   return L.divIcon({
-    html: `<span class="${styles.nombre}" aria-hidden="true">${n}</span><span class="sr-only">${echapper(`Groupe de ${n} points${detail}. Entrée ou Espace pour zoomer`)}</span>`,
+    html: `<span class="${styles.nombre}" aria-hidden="true">${n}</span><span class="sr-only">${echapper(`Groupe de ${n} points${detail ? ` : ${detail}` : ""}. Entrée ou Espace pour zoomer`)}</span>`,
     className: styles.groupe,
     iconSize: [taille, taille],
   });
@@ -173,12 +190,7 @@ function ouvrirSiPresent(g: L.MarkerClusterGroup | null, m: L.Marker | undefined
   return true;
 }
 
-// Carte de moins de 480 px de large ou de haut (hors panneau replié), d'après la fenêtre : l'encart d'une zone à
-// cartographier y cacherait les points.
-const petiteCarte = () => matchMedia("(max-width: 795px), (max-height: 603px)").matches;
-
-// L'adresse suit la recherche dans la zone : un lien copié ou un rechargement retrouve le même état. Écrite tout de
-// suite : un replaceState pendant une navigation l'annulerait.
+// L'adresse suit la recherche dans la zone : un lien copié ou un rechargement retrouve le même état.
 function ecrireRecherche(valeur: string) {
   const u = new URL(location.href);
   const q = valeur.trim();
@@ -198,7 +210,6 @@ export default function ZoneMap({
   categories,
   pois,
   etiquettes = AUCUNE_ETIQUETTE,
-  genre = null,
   poiInitial,
   rechercheInitiale = "",
 }: Props) {
@@ -212,7 +223,6 @@ export default function ZoneMap({
     faction: `${uid}-faction`,
     categories: `${uid}-categories`,
     aide: `${uid}-aide`,
-    encart: `${uid}-encart`,
     categorie: (id: number) => `${uid}-categorie-${id}`,
   };
   const cadre = useRef<HTMLDivElement>(null);
@@ -223,8 +233,6 @@ export default function ZoneMap({
   const poignee = useRef<HTMLButtonElement>(null);
   const champ = useRef<HTMLInputElement>(null);
   const radioToutes = useRef<HTMLInputElement>(null);
-  const titreEncart = useRef<HTMLHeadingElement>(null);
-  const encart = useRef<HTMLElement>(null);
   const carte = useRef<L.Map | null>(null);
   const grappe = useRef<L.MarkerClusterGroup | null>(null);
   const marqueurs = useRef<Map<number, L.Marker>>(new Map());
@@ -242,7 +250,10 @@ export default function ZoneMap({
   // Lien partagé (?poi=) : les filtres de départ laissent passer le point, dont la fiche s'ouvre ensuite.
   const [cible] = useState(() => (poiInitial == null ? undefined : pois.find((p) => p.id === poiInitial)));
   const [visibles, setVisibles] = useState<Set<number>>(() => {
-    const depart = new Set(categories.filter((c) => !MASQUEES_PAR_DEFAUT.has(c.slug)).map((c) => c.id));
+    const nombre = (id: number) => pois.filter((p) => p.categorieId === id).length;
+    const depart = new Set(
+      categories.filter((c) => !MASQUEES_PAR_DEFAUT.has(c.slug) || nombre(c.id) <= SEUIL_MASQUAGE).map((c) => c.id),
+    );
     if (cible) depart.add(cible.categorieId);
     return depart;
   });
@@ -254,15 +265,28 @@ export default function ZoneMap({
     return f === "alliance" || f === "horde" ? f : "toutes";
   });
   const [vue, setVue] = useState<Vue>(() => (carteParDefaut ? "parchemin" : lire("carte:vue") === "parchemin" ? "parchemin" : "terrain"));
-  const [texteInitial] = useState(() =>
+  // Un ?q= sans rapport avec le point d'un lien ?poi= est ignoré.
+  const [texte, setTexte] = useState(() =>
     cible && !normaliser(cible.nom).includes(normaliser(rechercheInitiale.trim())) ? "" : rechercheInitiale,
   );
-  const [texte, setTexte] = useState(texteInitial);
+  // L'adresse désigne un autre point : lien vers la zone déjà affichée (recherche de l'en-tête), ou retour sur la page
+  // gardée par <Activity>. Les filtres qui le cachent le laissent passer, l'effet de ?poi= ouvre ensuite sa fiche.
+  const poiAdresse = Number(useSearchParams().get("poi")) || null;
+  const [poiVu, setPoiVu] = useState(poiAdresse);
+  if (poiAdresse !== poiVu) {
+    setPoiVu(poiAdresse);
+    const nouveau = pois.find((p) => p.id === poiAdresse);
+    if (nouveau) {
+      const f = factionDe(nouveau);
+      setFaction((actuelle) => (!f || actuelle === "toutes" || actuelle === f ? actuelle : "toutes"));
+      setVisibles((prev) => (prev.has(nouveau.categorieId) ? prev : new Set(prev).add(nouveau.categorieId)));
+      setTexte((t) => (normaliser(nouveau.nom).includes(normaliser(t.trim())) ? t : ""));
+    }
+  }
   const texteDiffere = useDeferredValue(texte);
+  // Champ de recherche fixé au départ : l'effacer ne le retire pas.
+  const [avecRecherche] = useState(() => pois.length >= RECHERCHE_MIN || texte !== "");
   const [sheetOuvert, setSheetOuvert] = useState(false);
-  // Encart d'une zone à cartographier replié d'emblée quand une fiche va s'ouvrir (?poi=) ou que la carte est petite :
-  // il cacherait les points. Celui d'une zone vide reste ouvert (il mène aux zones voisines).
-  const [encartOuvert, setEncartOuvert] = useState(() => vide || (!cible && !petiteCarte()));
   // Sur mobile, la liste de résultats se referme une fois un point choisi (elle couvrirait sa fiche).
   const [resultatsMasques, setResultatsMasques] = useState(false);
   const [pret, setPret] = useState(false);
@@ -274,10 +298,6 @@ export default function ZoneMap({
   const categoriesParId = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const nomsNormalises = useMemo(() => new Map(pois.map((p) => [p.id, normaliser(p.nom)])), [pois]);
 
-  // Nouvelle zone de Forever sans autre point que ses maîtres de vol (relevés dans le client) : encore à cartographier.
-  const aCartographier = genre === "nouvelle" && pois.every((p) => categoriesParId.get(p.categorieId)?.slug === "maitre-vol");
-  const avecEncart = vide || aCartographier;
-
   // Nombre de points par catégorie dans toute la zone, sans filtre : une catégorie absente le reste.
   const totaux = useMemo(() => {
     const m = new Map<number, number>();
@@ -285,7 +305,23 @@ export default function ZoneMap({
     return m;
   }, [pois]);
   const presentes = useMemo(() => categories.filter((c) => totaux.get(c.id)), [categories, totaux]);
+  // Sans point ici : celles des fichiers du jeu sont absentes de la zone, les autres viendront des joueurs.
   const absentes = useMemo(() => categories.filter((c) => !totaux.get(c.id)), [categories, totaux]);
+  const aVenir = absentes.filter((c) => !CATEGORIES_CLIENT.has(c.slug));
+  const sansVol = absentes.some((c) => c.slug === "maitre-vol");
+  const sansDonjon = absentes.some((c) => c.slug === "donjon");
+  const noteJeu =
+    sansVol && sansDonjon
+      ? "Les fichiers du jeu ne placent ici ni maître de vol, ni entrée de donjon ou de raid."
+      : sansVol
+        ? "Les fichiers du jeu ne placent ici aucun maître de vol."
+        : sansDonjon
+          ? "Les fichiers du jeu ne placent ici aucune entrée de donjon ni de raid."
+          : null;
+  // Choix de la faction seulement s'il change quelque chose : la zone a des points de l'Alliance et de la Horde.
+  // Sinon, la faction mémorisée est ignorée.
+  const avecFactions = pois.some((p) => factionDe(p) === "alliance") && pois.some((p) => factionDe(p) === "horde");
+  const factionActive = avecFactions ? faction : "toutes";
 
   const recherche = normaliser(texteDiffere.trim());
 
@@ -294,20 +330,22 @@ export default function ZoneMap({
     () =>
       pois.filter((p) => {
         const f = p.donnees.faction;
-        if (faction !== "toutes" && f && f !== "neutre" && f !== faction) return false;
+        if (factionActive !== "toutes" && f && f !== "neutre" && f !== factionActive) return false;
         return !recherche || nomsNormalises.get(p.id)!.includes(recherche);
       }),
-    [pois, faction, recherche, nomsNormalises],
+    [pois, factionActive, recherche, nomsNormalises],
   );
 
-  // Correspondances de la recherche cachées par le filtre de faction : le statut les signale.
+  // Points que seul le filtre de faction cache (ils correspondent à la recherche, ou sont d'une catégorie cochée) : le
+  // statut les signale.
   const masquesFaction = useMemo(() => {
-    if (!recherche || faction === "toutes") return 0;
+    if (factionActive === "toutes") return 0;
     return pois.filter((p) => {
-      const f = p.donnees.faction;
-      return f && f !== "neutre" && f !== faction && nomsNormalises.get(p.id)!.includes(recherche);
+      const f = factionDe(p);
+      if (!f || f === factionActive) return false;
+      return recherche ? nomsNormalises.get(p.id)!.includes(recherche) : visibles.has(p.categorieId);
     }).length;
-  }, [pois, faction, recherche, nomsNormalises]);
+  }, [pois, factionActive, recherche, nomsNormalises, visibles]);
 
   // Tant que le champ est rempli, la recherche passe avant les cases des catégories.
   const affiches = useMemo(
@@ -345,13 +383,8 @@ export default function ZoneMap({
     const animations = { zoomAnimation: !reduit, fadeAnimation: !reduit, markerZoomAnimation: !reduit, inertia: !reduit };
     // Partie basse de la carte couverte par le panneau replié (mobile).
     const basPanneau = () => (estMobile() ? hauteurPanneau.current : 0);
-    // Carte basse (téléphone en paysage) : la fiche monte jusqu'en haut, le choix du fond et le rappel de l'encart
-    // s'effacent quand elle est ouverte. Carte étroite : l'encart passe sous les contrôles au lieu de les couvrir.
-    const marquerTaille = (largeur: number, hauteur: number) => {
-      el.toggleAttribute("data-basse", hauteur < 420);
-      el.toggleAttribute("data-etroite", largeur < 880);
-    };
-    marquerTaille(el.clientWidth, el.clientHeight);
+    // Carte démontée (page quittée) : map.remove() ferme encore la fiche ouverte.
+    let demontee = false;
 
     let map: L.Map;
     let limites: L.LatLngBounds;
@@ -392,38 +425,29 @@ export default function ZoneMap({
       });
       couches.current = { terrain: null, parchemin: L.imageOverlay(zone.carteUrl, limites) };
     }
-    // Cadrage sur la zone. L'encart ouvert ne doit cacher aucun point : s'il en couvre un, la zone passe dessous.
-    const cadrer = (depart: boolean) => {
-      const e = encart.current;
-      let haut = 0;
-      if (e && pois.length) {
-        const c = el.getBoundingClientRect();
-        const b = e.getBoundingClientRect();
-        const z = map.getBoundsZoom(limites);
-        const milieu = map.project(limites.getCenter(), z).subtract(map.getSize().divideBy(2));
-        const bas = b.bottom - c.top + 8;
-        const couvert = pois.some((p) => {
-          const q = map.project(versCarte(p.x, p.y), z).subtract(milieu);
-          return q.y - 14 < bas && q.x + 14 > b.left - c.left && q.x - 14 < b.right - c.left;
-        });
-        if (couvert) haut = bas;
-      }
-      map.fitBounds(limites, { paddingTopLeft: [0, haut], ...(depart && { animate: false }) });
-    };
-    cadrer(true);
+    map.fitBounds(limites, { animate: false });
     // Zoom minimal entier : markercluster n'affiche pas les points isolés quand il est fractionnaire.
     if (monde) map.setMinZoom(Math.max(0, Math.floor(map.getZoom() - 1)));
     // Bornes du déplacement : une marge autour de la zone, et au moins un quart de la vue de départ au-delà de ce qui
-    // dépasse. Sans elle, une zone qui remplit la largeur d'un téléphone en portrait (la vue la déborde en hauteur)
-    // ne pourrait pas descendre, et la fiche d'un point du haut sortirait du champ.
+    // dépasse (une zone qui remplit la largeur d'un téléphone en portrait doit pouvoir descendre). Le temps d'une fiche
+    // dont l'autoPan les dépasserait, une vue de départ entière au-delà de chaque bord : ramené en arrière, son haut
+    // sortirait du champ.
     const vueDepart = map.getBounds();
-    const marge = (zoneT: number, vueT: number) => Math.max(zoneT * (monde ? 0.5 : 0.15), (vueT - zoneT) / 2 + vueT / 4);
-    const dLat = marge(limites.getNorth() - limites.getSouth(), vueDepart.getNorth() - vueDepart.getSouth());
-    const dLng = marge(limites.getEast() - limites.getWest(), vueDepart.getEast() - vueDepart.getWest());
-    map.setMaxBounds([
-      [limites.getSouth() - dLat, limites.getWest() - dLng],
-      [limites.getNorth() + dLat, limites.getEast() + dLng],
-    ]);
+    const bornes = (marge: (zoneT: number, vueT: number) => number) => {
+      const dLat = marge(limites.getNorth() - limites.getSouth(), vueDepart.getNorth() - vueDepart.getSouth());
+      const dLng = marge(limites.getEast() - limites.getWest(), vueDepart.getEast() - vueDepart.getWest());
+      return L.latLngBounds([
+        [limites.getSouth() - dLat, limites.getWest() - dLng],
+        [limites.getNorth() + dLat, limites.getEast() + dLng],
+      ]);
+    };
+    const bornesCarte = bornes((zoneT, vueT) => Math.max(zoneT * (monde ? 0.5 : 0.15), (vueT - zoneT) / 2 + vueT / 4));
+    const bornesFiche = bornes((zoneT, vueT) => Math.max(zoneT * 0.5, vueT));
+    map.setMaxBounds(bornesCarte);
+    map.on("autopanstart", () => map.setMaxBounds(bornesFiche));
+    map.on("popupclose", () => {
+      if (!demontee) map.setMaxBounds(bornesCarte);
+    });
     if (reduit) {
       // Les options d'animation ne couvrent pas les déplacements : clavier, recentrage, autoPan et setView passent par panBy.
       const panBy = map.panBy.bind(map);
@@ -444,11 +468,11 @@ export default function ZoneMap({
       bouton.innerHTML =
         '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="10" r="1.8" fill="currentColor"/><path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
       L.DomEvent.disableClickPropagation(bloc);
-      L.DomEvent.on(bouton, "click", () => cadrer(false));
+      L.DomEvent.on(bouton, "click", () => map.fitBounds(limites));
       return bloc;
     };
     recentrer.addTo(map);
-    map.attributionControl.setPrefix(false).addAttribution("© Blizzard Entertainment · pfQuest, VMaNGOS");
+    map.attributionControl.setPrefix(false).addAttribution("© Blizzard Entertainment");
     const controles = el.querySelector(".leaflet-control-container");
     if (controles) el.prepend(controles);
 
@@ -464,11 +488,10 @@ export default function ZoneMap({
     });
 
     // Point atteint au clavier hors du champ visible (markercluster en garde autour), ou sous un contrôle posé sur la
-    // carte : la carte se déplace jusqu'à lui. L'encart d'une zone à cartographier se replie.
+    // carte : la carte se déplace jusqu'à lui.
     const surFocus = (ev: FocusEvent) => {
       const cible = ev.target as HTMLElement;
       if (!cible.classList.contains("leaflet-marker-icon")) return;
-      if (encart.current) flushSync(() => setEncartOuvert(false));
       // Le navigateur a pu faire défiler le conteneur pour montrer le point ; Leaflet l'annule de toute façon.
       el.scrollTop = 0;
       el.scrollLeft = 0;
@@ -493,34 +516,35 @@ export default function ZoneMap({
       }
       if (dx || dy) map.panBy([dx, dy]);
     };
-    // Points, grappes, boutons de zoom et croix des fiches ont le rôle de bouton : Espace les active aussi.
+    // Échap dans une fiche la ferme. Points, grappes, boutons de zoom et croix des fiches ont le rôle de bouton :
+    // Espace les active aussi.
     const surTouche = (e: KeyboardEvent) => {
       const cible = e.target as HTMLElement;
+      if (e.key === "Escape" && cible.closest(".leaflet-popup")) {
+        e.stopPropagation();
+        map.closePopup();
+        return;
+      }
       if (e.key !== " " || !cible.matches(".leaflet-marker-icon, .leaflet-popup-close-button, .leaflet-control a[role=button]")) return;
       e.preventDefault();
       cible.click();
       // Comme markercluster le fait pour Entrée : la grappe disparaît en zoomant, le focus passe à la carte.
       if (cible.classList.contains(styles.groupe)) el.focus({ preventScroll: true });
     };
-    // Écouteurs posés sur l'élément du conteneur, que map.remove() ne retire pas.
-    el.addEventListener("focusin", surFocus);
-    el.addEventListener("keydown", surTouche);
-
-    // Fiches bornées par la hauteur de la carte : plus haute qu'elle, l'autoPan sortirait le point du champ, et
-    // markercluster (sur mobile) le retirerait en fermant sa fiche.
+    // Marges de l'autoPan des fiches. Leur hauteur maximale, en CSS, en tient compte : plus haute que la carte, une
+    // fiche sortirait son point du champ, et markercluster (sur mobile) le retirerait en la fermant.
     const optionsFiche = (): L.PopupOptions => {
-      const hauteur = map.getSize().y;
-      const haut = hauteur < 420 ? 8 : 64;
+      // Carte basse (téléphone en paysage) : la fiche monte jusqu'en haut.
+      const haut = map.getSize().y < 420 ? 8 : 64;
       // Sous la fiche : sa pointe et le point (28 px), la mention des sources, une marge, le panneau replié.
       const sources = el.querySelector<HTMLElement>(".leaflet-control-attribution")?.offsetHeight ?? 0;
-      const bas = 28 + sources + 12 + basPanneau();
-      const max = estMobile() ? Math.round(hauteur * 0.5) : Infinity;
-      return {
-        autoPanPaddingTopLeft: L.point(56, haut),
-        autoPanPaddingBottomRight: L.point(16, bas),
-        // 32 : marges du contenu et bordure de la fiche, comptées dans la boîte que l'autoPan garde dans le champ.
-        maxHeight: Math.max(96, Math.min(hauteur - haut - bas - 32, max)),
-      };
+      return { autoPanPaddingTopLeft: L.point(56, haut), autoPanPaddingBottomRight: L.point(16, 28 + sources + 12 + basPanneau()) };
+    };
+
+    // Le focus revient au point (ou à la carte, pour le clic droit) quand il était dans la fiche, ou perdu avec elle.
+    const rendreFocus = (popup: L.Popup, vers: HTMLElement | undefined) => {
+      const actif = document.activeElement;
+      if (!actif || actif === document.body || popup.getElement()?.contains(actif)) vers?.focus({ preventScroll: true });
     };
 
     // Clic droit (appui long sur mobile) : coordonnées du point et commande /way.
@@ -528,16 +552,16 @@ export default function ZoneMap({
       const { x, y } = versJeu(e.latlng);
       if (x < 0 || x > 100 || y < 0 || y > 100) return;
       const texte = formatCoords(x, y);
-      L.popup({ ...optionsFiche(), maxWidth: 220 })
+      const popup = L.popup({ ...optionsFiche(), maxWidth: 220 })
         .setLatLng(e.latlng)
         .setContent(
           `<div data-titre="Coordonnées ${texte}"><p class="${styles.coordsFiche}">${texte}</p>${boutonsCopie(`/way ${coordsWay(x, y)}`)}</div>`,
         )
+        .on("remove", () => rendreFocus(popup, el))
         .openOn(map);
     });
 
-    // Fiches : boîte de dialogue, focus dedans, copie par délégation, Échap pour fermer.
-    const delegues = new WeakSet<HTMLElement>();
+    // Fiches : boîte de dialogue, focus dedans ; copie, Échap (surTouche) et fondu délégués au conteneur.
     const surClicFiche = async (ev: MouseEvent) => {
       const bouton = (ev.target as Element).closest<HTMLButtonElement>("button[data-copier], button[data-lien]");
       if (!bouton) return;
@@ -566,10 +590,16 @@ export default function ZoneMap({
     // Fiche qui défile (mobile, petite fenêtre) : fondu en bas tant qu'il reste du texte plus bas.
     const majFondu = (contenu: HTMLElement) =>
       contenu.toggleAttribute("data-suite", contenu.scrollHeight - contenu.scrollTop - contenu.clientHeight > 2);
+    const surDefilement = (ev: Event) => {
+      if (ev.target instanceof HTMLElement && ev.target.classList.contains("leaflet-popup-content")) majFondu(ev.target);
+    };
+    // Écouteurs posés sur l'élément du conteneur, que map.remove() ne retire pas.
+    el.addEventListener("focusin", surFocus);
+    el.addEventListener("keydown", surTouche);
+    el.addEventListener("click", surClicFiche);
+    el.addEventListener("scroll", surDefilement, { capture: true, passive: true });
     map.on("popupopen", (e) => {
       setSheetOuvert(false);
-      // L'encart d'une zone à cartographier couvrirait la fiche : il se replie sur son bouton de rappel.
-      setEncartOuvert(false);
       const boite = e.popup.getElement();
       if (!boite) return;
       boite.setAttribute("role", "dialog");
@@ -582,26 +612,6 @@ export default function ZoneMap({
         contenu.tabIndex = -1;
         contenu.focus({ preventScroll: true });
         majFondu(contenu);
-      }
-      if (!delegues.has(boite)) {
-        delegues.add(boite);
-        boite.addEventListener("click", surClicFiche);
-        boite.addEventListener("keydown", (ev) => {
-          if (ev.key !== "Escape") return;
-          ev.stopPropagation();
-          map.closePopup();
-        });
-        if (contenu) contenu.addEventListener("scroll", () => majFondu(contenu), { passive: true });
-      }
-    });
-    map.on("popupclose", (e) => {
-      // Le focus revient au point (ou à la carte, pour les coordonnées du clic droit) quand il était dans la fiche,
-      // ou perdu avec elle.
-      const source = (e.popup as L.Popup & { _source?: L.Layer })._source;
-      const actif = document.activeElement;
-      if (!actif || actif === document.body || e.popup.getElement()?.contains(actif)) {
-        if (source instanceof L.Marker) source.getElement()?.focus({ preventScroll: true });
-        else el.focus({ preventScroll: true });
       }
     });
     map.on("click", () => setSheetOuvert(false));
@@ -633,8 +643,8 @@ export default function ZoneMap({
       if (!placees.length || map.getPane("etiquettes")?.style.display === "none") return;
       const { x: largeur, y: hauteur } = map.getSize();
       const origineCarte = el.getBoundingClientRect();
-      // Ce qu'une étiquette ne doit pas recouvrir : points, grappes, contrôles, fiche ouverte (pas celle qui s'efface)
-      // et encarts posés sur la carte.
+      // Ce qu'une étiquette ne doit pas recouvrir : points, grappes, contrôles de Leaflet et de la page, fiche ouverte
+      // (pas celle qui s'efface).
       const obstacles: Boite[] = [];
       const elements = [
         ...el.querySelectorAll<HTMLElement>(".leaflet-marker-pane > .leaflet-marker-icon, .leaflet-control, .leaflet-popup"),
@@ -711,32 +721,50 @@ export default function ZoneMap({
     bornerEtiquettes.current = planifier;
     map.on("moveend resize popupopen popupclose", planifier);
 
-    // Résumé d'une grappe : « 9 donneurs de quêtes · 5 marchands · 2 coffres et trésors ».
+    // Résumé d'une grappe par type de point, comme sur les fiches : « 2 herbes · 1 entrée de donjon ». De quatre points
+    // au plus, avec leurs noms : « 2 maîtres de vol : Gadgetzan (Alliance), Gadgetzan (Horde) ».
     const resumeGrappe = (g: L.MarkerCluster) => {
-      const n = new Map<number, number>();
-      for (const m of g.getAllChildMarkers()) {
-        const id = (m.options as { categorieId?: number }).categorieId;
-        if (id != null) n.set(id, (n.get(id) ?? 0) + 1);
+      const enfants = g.getAllChildMarkers();
+      const types = new Map<string, { categorieId: number; role?: string; noms: string[] }>();
+      for (const m of enfants) {
+        const { categorieId, role, libelle } = optionsPoint(m);
+        const cle = `${categorieId}:${role ?? ""}`;
+        const t = types.get(cle) ?? { categorieId, role, noms: [] };
+        t.noms.push(libelle);
+        types.set(cle, t);
       }
-      const tri = [...n].sort((a, b) => b[1] - a[1]);
-      const parts = tri.slice(0, 3).map(([id, k]) => {
-        const c = categoriesParId.get(id);
-        const libelle = k > 1 ? c?.nom : c && (TYPE_SINGULIER[c.slug] ?? c.nom);
-        return `${k} ${(libelle ?? "").toLocaleLowerCase("fr")}`;
+      const tri = [...types.values()].sort(
+        (a, b) => b.noms.length - a.noms.length || a.categorieId - b.categorieId || (a.role ?? "").localeCompare(b.role ?? ""),
+      );
+      const avecNoms = enfants.length <= 4;
+      const parts = (avecNoms ? tri : tri.slice(0, 3)).map((t) => {
+        const c = categoriesParId.get(t.categorieId);
+        const n = t.noms.length;
+        const libelle = c ? nombreDeType(n, c.slug, c.nom, t.role) : String(n);
+        return avecNoms ? `${libelle} : ${t.noms.sort((x, y) => x.localeCompare(y, "fr")).join(", ")}` : libelle;
       });
-      if (tri.length > 3) parts.push("…");
-      return parts;
+      if (parts.length < tri.length) parts.push("…");
+      const seule = tri.every((t) => t.categorieId === tri[0].categorieId) ? categoriesParId.get(tri[0].categorieId) : undefined;
+      return { parts, seule };
     };
+
+    // Zone qui a peu de points : seuls ceux qui se chevauchent se regroupent. markercluster groupe au zoom arrondi, la
+    // carte s'affiche à un zoom fractionnaire (zoomSnap) : les marqueurs peuvent y être √2 fois plus proches. 34 px
+    // (24 × √2) gardent deux disques de 24 px séparés ; plus large, des points bien distincts se grouperaient.
+    const rayon = pois.length < PEU_DE_POINTS ? 34 : null;
 
     const groupe = L.markerClusterGroup({
       // Grappes larges sur la zone entière, plus serrées en zoomant ; au zoom maximal, les points
       // superposés s'écartent en étoile (markercluster travaille sur le zoom arrondi).
-      maxClusterRadius: (z) => (z <= zInit ? 36 : z < zMax ? 20 : 16),
+      maxClusterRadius: (z) => rayon ?? (z <= zInit ? 36 : z < zMax ? 20 : 16),
       spiderfyOnMaxZoom: true,
       spiderLegPolylineOptions: { weight: 1.5, color: "#fbf3e0", opacity: 0.7 },
       showCoverageOnHover: false,
       animate: !reduit,
-      iconCreateFunction: (g) => clusterIcone(g, resumeGrappe(g)),
+      iconCreateFunction: (g) => {
+        const { parts, seule } = resumeGrappe(g);
+        return clusterIcone(g, parts, seule);
+      },
     }).addTo(map);
     groupe.on("animationend spiderfied unspiderfied", planifier);
 
@@ -811,7 +839,7 @@ export default function ZoneMap({
         const g = (e as L.LeafletEvent & { layer: L.MarkerCluster }).layer;
         garderInfobulle();
         if (g.getTooltip()?.isOpen()) return;
-        g.bindTooltip(echapper(resumeGrappe(g).join(" · ")), { direction: "top", offset: [0, -16], className: styles.infobulle, opacity: 1 });
+        g.bindTooltip(echapper(resumeGrappe(g).parts.join(" · ")), { direction: "top", offset: [0, -16], className: styles.infobulle, opacity: 1 });
         // La fermeture immédiate de Leaflet laisse la place à la fermeture retardée.
         g.off("mouseout", g.closeTooltip);
         g.openTooltip();
@@ -819,24 +847,32 @@ export default function ZoneMap({
       groupe.on("clustermouseout", fermerBientot);
     }
 
-    const icones = new Map(categories.map((c) => [c.id, icone(c)]));
+    const icones = new Map<string, L.DivIcon>();
     const tous = new Map<number, L.Marker>();
-    let demontee = false;
-    const largeurFiche = () => (estMobile() ? 260 : 320);
-    const options = { ...optionsFiche(), maxWidth: largeurFiche() };
+    // Largeur fixe sur mobile ; sur ordinateur, assez pour les deux boutons de copie sur une ligne. La carte la borne
+    // aussi, en CSS.
+    const largeurFiche = () => (estMobile() ? { minWidth: 260, maxWidth: 260 } : { minWidth: 310, maxWidth: 320 });
+    const optionsPopup = { ...optionsFiche(), ...largeurFiche() };
     for (const p of pois) {
       const cat = categoriesParId.get(p.categorieId);
       if (!cat) continue;
       const type = typePoi(cat.slug, cat.nom, p.donnees.role);
-      // Nom accessible avec la position, pour distinguer les points de même nom ; le type seulement s'il apporte
-      // quelque chose (« Gardien des âmes, Gardien des âmes »).
-      const nom = normaliser(type) === normaliser(p.nom) ? `${p.nom}, ${formatCoords(p.x, p.y)}` : `${p.nom}, ${type}, ${formatCoords(p.x, p.y)}`;
-      const m = L.marker(versCarte(p.x, p.y), {
-        icon: icones.get(cat.id),
+      const faction = factionDe(p);
+      const cle = `${cat.id}:${faction}`;
+      if (!icones.has(cle)) icones.set(cle, icone(cat, faction));
+      // Nom accessible avec la faction et la position, pour distinguer les points de même nom (Gadgetzan Alliance et
+      // Horde) ; le type seulement s'il apporte quelque chose (« Boîte aux lettres, Boîte aux lettres »).
+      const details = [normaliser(type) === normaliser(p.nom) ? null : type, faction && FACTIONS[faction]].filter(Boolean);
+      const nom = [p.nom, ...details, formatCoords(p.x, p.y)].join(", ");
+      const options: OptionsPoint = {
+        icon: icones.get(cle),
         riseOnHover: true,
         riseOffset: 500,
         categorieId: cat.id,
-      } as L.MarkerOptions).bindPopup(() => fiche(p, cat, type), options);
+        role: p.donnees.role,
+        libelle: faction ? `${p.nom} (${FACTIONS[faction]})` : p.nom,
+      };
+      const m = L.marker(versCarte(p.x, p.y), options).bindPopup(() => fiche(p, cat, type), optionsPopup);
       // La grappe recrée l'élément à chaque affichage.
       m.on("add", () => {
         const element = m.getElement();
@@ -845,7 +881,7 @@ export default function ZoneMap({
         if (m.isPopupOpen()) element.classList.add(styles.actif);
       });
       if (survol) {
-        m.bindTooltip(echapper(normaliser(type) === normaliser(p.nom) ? p.nom : `${p.nom} · ${type}`), {
+        m.bindTooltip(echapper([p.nom, ...details].join(" · ")), {
           direction: "top",
           offset: [0, -14],
           className: styles.infobulle,
@@ -862,9 +898,10 @@ export default function ZoneMap({
         u.searchParams.set("poi", String(p.id));
         history.replaceState(null, "", u);
       });
-      m.on("popupclose", () => {
+      m.on("popupclose", (e) => {
         m.getElement()?.classList.remove(styles.actif);
         m.setZIndexOffset(0);
+        rendreFocus(e.popup, m.getElement());
         // Carte démontée (page quittée) : l'adresse est déjà celle de la page suivante.
         if (demontee) return;
         const u = new URL(location.href);
@@ -873,25 +910,21 @@ export default function ZoneMap({
       });
       tous.set(p.id, m);
     }
-    // Dimensions des fiches à jour quand la carte ou le panneau replié changent de taille, celle qui est ouverte
-    // comprise (téléphone tourné, fenêtre redimensionnée).
+    // Marges des fiches à jour quand la carte ou le panneau replié changent de taille (téléphone tourné, fenêtre
+    // redimensionnée). Celle qui est ouverte est replacée sans update(), qui régénérerait son contenu et perdrait le
+    // focus : sa largeur ne change qu'à la prochaine ouverture.
     const majFiches = () => {
-      const { x: largeur, y: hauteur } = map.getSize();
-      marquerTaille(largeur, hauteur);
       const o = optionsFiche();
       for (const m of tous.values()) {
         const popup = m.getPopup();
-        if (popup) Object.assign(popup.options, o, { maxWidth: largeurFiche() });
+        if (popup) Object.assign(popup.options, o, largeurFiche());
       }
       map.eachLayer((l) => {
         if (!(l instanceof L.Popup) || !l.isOpen()) return;
         Object.assign(l.options, o);
-        // Pas update() : il régénérerait le contenu, et le focus qui y est se perdrait.
-        const f = l as L.Popup & { _updateLayout(): void; _updatePosition(): void; _adjustPan(): void };
-        f._updateLayout();
-        f._updatePosition();
-        f._adjustPan();
-        const contenu = f.getElement()?.querySelector<HTMLElement>(".leaflet-popup-content");
+        const position = l.getLatLng();
+        if (position) l.setLatLng(position);
+        const contenu = l.getElement()?.querySelector<HTMLElement>(".leaflet-popup-content");
         if (contenu) majFondu(contenu);
       });
     };
@@ -909,6 +942,8 @@ export default function ZoneMap({
       document.removeEventListener("keydown", surEchap);
       el.removeEventListener("focusin", surFocus);
       el.removeEventListener("keydown", surTouche);
+      el.removeEventListener("click", surClicFiche);
+      el.removeEventListener("scroll", surDefilement, { capture: true });
       map.remove();
       // map.remove() laisse l'écouteur « scroll » de Leaflet sur le conteneur, que la page cachée garde dans le DOM :
       // il retiendrait la carte entière.
@@ -941,7 +976,7 @@ export default function ZoneMap({
     });
     observateur.observe(a);
     return () => observateur.disconnect();
-  }, [vide]);
+  }, []);
 
   // Fond de carte : terrain (minimap) ou carte du jeu. Les étiquettes ne vont qu'avec le terrain.
   useEffect(() => {
@@ -958,7 +993,7 @@ export default function ZoneMap({
     bornerEtiquettes.current();
   }, [pret, vue]);
 
-  // Applique les filtres : la grappe est vidée puis remplie en une fois (rapide même avec 2 000 points).
+  // Applique les filtres : la grappe est vidée puis remplie en une fois (rapide même avec des milliers de points).
   useEffect(() => {
     const groupe = grappe.current;
     if (!pret || !groupe) return;
@@ -986,9 +1021,10 @@ export default function ZoneMap({
     if (ouvrirSiPresent(grappe.current, marqueurs.current.get(id), montrerPoint.current)) aOuvrir.current = null;
   }, [pret, poiInitial]);
 
-  // Au départ, l'adresse prend le texte retenu (un ?q= sans rapport avec le point d'un lien ?poi= est retiré) ; ensuite,
-  // chaque frappe l'écrit.
-  useEffect(() => ecrireRecherche(texteInitial), [texteInitial]);
+  // L'adresse suit le champ (un ?q= ignoré au départ en est retiré). Une seule source : quand la page cachée par
+  // <Activity> réapparaît, l'adresse porte déjà ce texte. Un effet d'une saisie s'exécute avant l'évènement suivant :
+  // un clic sur un lien juste après ne voit pas sa navigation annulée par ce replaceState.
+  useEffect(() => ecrireRecherche(texte), [texte]);
 
   // Panneau tiré du bas (mobile) : Échap le ferme et rend le focus à la poignée. Dans un champ rempli, le premier
   // Échap ne fait qu'effacer le texte.
@@ -1049,24 +1085,12 @@ export default function ZoneMap({
     focaliser(radioToutes.current, poignee.current, champ.current);
   }
 
-  function fermerEncart() {
-    flushSync(() => setEncartOuvert(false));
-    carte.current?.getContainer().focus({ preventScroll: true });
-  }
-
-  function ouvrirEncart() {
-    // L'encart passe au-dessus des fiches : celle qui est ouverte se ferme.
-    carte.current?.closePopup();
-    flushSync(() => setEncartOuvert(true));
-    titreEncart.current?.focus();
-  }
-
   const texteRecherche = texteDiffere.trim();
   const resultats = recherche && correspondants.length <= RESULTATS_MAX ? correspondants : [];
 
-  const filtreFaction = masquesFaction > 0 && faction !== "toutes" && (
+  const filtreFaction = masquesFaction > 0 && factionActive !== "toutes" && (
     <>
-      {` · ${masquesFaction.toLocaleString("fr-FR")} masqué${masquesFaction > 1 ? "s" : ""} par le filtre ${FACTIONS[faction]} `}
+      {` · ${masquesFaction.toLocaleString("fr-FR")} masqué${masquesFaction > 1 ? "s" : ""} par le filtre ${FACTIONS[factionActive]} `}
       <button type="button" className={styles.boutonLien} onClick={toutesFactions}>
         Toutes les factions
       </button>
@@ -1084,6 +1108,7 @@ export default function ZoneMap({
           </button>
         </>
       )}
+      {filtreFaction}
     </>
   ) : correspondants.length > 0 ? (
     <>
@@ -1102,51 +1127,63 @@ export default function ZoneMap({
     </>
   );
 
+  // Le nombre de points affichés est juste dessous, dans le statut.
+  const libellePoignee = vide
+    ? voisines.length > 0
+      ? "Aucun point ici · zones voisines"
+      : "Aucun point ici"
+    : nbCochees === presentes.length
+      ? "Filtres"
+      : `Filtres · ${nbCochees} catégorie${nbCochees > 1 ? "s" : ""} sur ${presentes.length}`;
+
   return (
-    <div ref={cadre} className={styles.cadre} data-vide={vide || undefined}>
-      {!vide && (
-        <aside
-          ref={panneau}
-          className={`${ui.surface} ${styles.filtres}`}
-          aria-label="Filtres de la carte"
-          data-ouvert={sheetOuvert || undefined}
-          onBlur={(e) => {
-            // Mobile : le focus qui quitte le panneau ouvert (Tab vers la carte) le referme, comme un clic sur la carte.
-            if (sheetOuvert && e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setSheetOuvert(false);
-          }}
+    <div ref={cadre} className={styles.cadre}>
+      <aside
+        ref={panneau}
+        className={`${ui.surface} ${styles.filtres}`}
+        aria-label="Filtres de la carte"
+        data-ouvert={sheetOuvert || undefined}
+        onBlur={(e) => {
+          // Mobile : le focus qui quitte le panneau ouvert (Tab vers la carte) le referme, comme un clic sur la carte.
+          if (sheetOuvert && e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setSheetOuvert(false);
+        }}
+      >
+        <button
+          ref={poignee}
+          type="button"
+          className={styles.poignee}
+          aria-expanded={sheetOuvert}
+          aria-controls={ids.corps}
+          onClick={() => setSheetOuvert((o) => !o)}
         >
-          <button
-            ref={poignee}
-            type="button"
-            className={styles.poignee}
-            aria-expanded={sheetOuvert}
-            aria-controls={ids.corps}
-            onClick={() => setSheetOuvert((o) => !o)}
-          >
-            <span className={styles.barrePoignee} aria-hidden="true" />
-            {`Filtres · ${nbCochees} catégorie${nbCochees > 1 ? "s" : ""} sur ${presentes.length}`}
-          </button>
+          <span className={styles.barrePoignee} aria-hidden="true" />
+          {libellePoignee}
+        </button>
+        {!vide && (
           <div className={styles.rechercheZone}>
-            <label htmlFor={ids.recherche} className="sr-only">
-              Chercher un point dans la zone
-            </label>
-            <input
-              ref={champ}
-              id={ids.recherche}
-              type="search"
-              className={ui.champ}
-              placeholder="Chercher dans la zone…"
-              value={texte}
-              onChange={(e) => {
-                setTexte(e.target.value);
-                setResultatsMasques(false);
-                ecrireRecherche(e.target.value);
-              }}
-              onFocus={() => setResultatsMasques(false)}
-              enterKeyHint="search"
-              autoComplete="off"
-              spellCheck={false}
-            />
+            {avecRecherche && (
+              <>
+                <label htmlFor={ids.recherche} className="sr-only">
+                  Chercher un point dans la zone
+                </label>
+                <input
+                  ref={champ}
+                  id={ids.recherche}
+                  type="search"
+                  className={ui.champ}
+                  placeholder="Chercher dans la zone…"
+                  value={texte}
+                  onChange={(e) => {
+                    setTexte(e.target.value);
+                    setResultatsMasques(false);
+                  }}
+                  onFocus={() => setResultatsMasques(false)}
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </>
+            )}
             <p role="status" className={styles.statut}>
               {statut}
             </p>
@@ -1155,13 +1192,17 @@ export default function ZoneMap({
                 {resultats.map((p) => {
                   const c = categoriesParId.get(p.categorieId);
                   if (!c) return null;
+                  const f = factionDe(p);
                   return (
                     <li key={p.id}>
                       <button type="button" onClick={() => ouvrirPoint(p.id)}>
                         <Pastille slug={c.slug} icone={c.icone} couleur={c.couleur} />
                         <span className={styles.nomResultat}>
                           {p.nom}
-                          <small>{typePoi(c.slug, c.nom, p.donnees.role)}</small>
+                          <small>
+                            {typePoi(c.slug, c.nom, p.donnees.role)}
+                            {f && ` · ${FACTIONS[f]}`}
+                          </small>
                         </span>
                         <span className={styles.coordsResultat}>{formatCoords(p.x, p.y)}</span>
                       </button>
@@ -1171,7 +1212,9 @@ export default function ZoneMap({
               </ul>
             )}
           </div>
-          <div id={ids.corps} className={styles.corps}>
+        )}
+        <div id={ids.corps} className={styles.corps}>
+          {avecFactions && (
             <fieldset className={`${ui.segmente} ${styles.factions}`} role="radiogroup" aria-labelledby={ids.faction}>
               <legend id={ids.faction} className="sr-only">
                 Faction
@@ -1191,10 +1234,12 @@ export default function ZoneMap({
                 </label>
               ))}
             </fieldset>
-            <fieldset className={styles.categories}>
-              <legend id={ids.categories} className={styles.etiquetteSection}>
-                Catégories
-              </legend>
+          )}
+          <fieldset className={styles.categories}>
+            <legend id={ids.categories} className={styles.etiquetteSection}>
+              Catégories
+            </legend>
+            {presentes.length >= 3 && (
               <div className={styles.toutRien}>
                 <button
                   type="button"
@@ -1208,54 +1253,59 @@ export default function ZoneMap({
                   Rien
                 </button>
               </div>
-              <div className={styles.lignesCategories}>
-                {presentes.map((c) => (
-                  <label key={c.id} className={styles.ligneCategorie}>
-                    <input id={ids.categorie(c.id)} type="checkbox" checked={visibles.has(c.id)} onChange={() => basculer(c.id)} />
-                    <Pastille slug={c.slug} icone={c.icone} couleur={c.couleur} />
-                    <span className={styles.nomCategorie} title={c.nom}>
-                      {c.nom}
-                    </span>{" "}
-                    <span className={styles.compteur}>
-                      {compteurs.get(c.id) ?? 0}
-                      <span className="sr-only">{(compteurs.get(c.id) ?? 0) > 1 ? " points" : " point"}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-              {absentes.length > 0 && (
-                <details className={styles.absentes}>
-                  <summary>Absentes de cette zone ({absentes.length})</summary>
-                  <ul>
-                    {absentes.map((c) => (
-                      <li key={c.id}>{c.nom}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </fieldset>
-            {voisines.length > 0 && (
-              <nav aria-label="Zones voisines" className={styles.voisines}>
-                <p className={styles.etiquetteSection} aria-hidden="true">
-                  Zones voisines
-                </p>
+            )}
+            <div className={styles.lignesCategories}>
+              {presentes.map((c) => (
+                <label key={c.id} className={styles.ligneCategorie}>
+                  <input id={ids.categorie(c.id)} type="checkbox" checked={visibles.has(c.id)} onChange={() => basculer(c.id)} />
+                  <Pastille slug={c.slug} icone={c.icone} couleur={c.couleur} />
+                  <span className={styles.nomCategorie} title={c.nom}>
+                    {c.nom}
+                  </span>{" "}
+                  <span className={styles.compteur}>
+                    {compteurs.get(c.id) ?? 0}
+                    <span className="sr-only">{(compteurs.get(c.id) ?? 0) > 1 ? " points" : " point"}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {noteJeu && <p className={styles.noteJeu}>{noteJeu}</p>}
+            {aVenir.length > 0 && (
+              <details className={styles.aVenir}>
+                <summary>À venir ({aVenir.length})</summary>
+                <p>Pas dans les fichiers du jeu : les joueurs pourront bientôt les ajouter.</p>
                 <ul>
-                  {voisines.map((e) => (
-                    <li key={e.slug}>
-                      <Link href={`/carte/${e.slug}`}>
-                        <span>{e.nom}</span>
-                        {e.niveaux && <span className={ui.pilule}>{e.niveaux}</span>}
-                      </Link>
+                  {aVenir.map((c) => (
+                    <li key={c.id}>
+                      <Pastille slug={c.slug} icone={c.icone} couleur={c.couleur} />
+                      {c.nom}
                     </li>
                   ))}
                 </ul>
-              </nav>
+              </details>
             )}
-          </div>
-        </aside>
-      )}
+          </fieldset>
+          {voisines.length > 0 && (
+            <nav aria-label="Zones voisines" className={styles.voisines}>
+              <p className={styles.etiquetteSection} aria-hidden="true">
+                Zones voisines
+              </p>
+              <ul>
+                {voisines.map((e) => (
+                  <li key={e.slug}>
+                    <Link href={`/carte/${e.slug}`}>
+                      <span>{e.nom}</span>
+                      {e.niveaux && <span className={ui.pilule}>{e.niveaux}</span>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
+        </div>
+      </aside>
       <div ref={zoneCarte} className={styles.zoneCarte}>
-        {/* Avant la carte dans l'ordre de tabulation (affichés par-dessus, en haut). */}
+        {/* Avant la carte dans l'ordre de tabulation (affiché par-dessus, en haut). */}
         {zone.monde && (
           <fieldset className={`${ui.segmente} ${styles.choixVue}`} data-obstacle>
             <legend className="sr-only">Fond de carte</legend>
@@ -1275,55 +1325,6 @@ export default function ZoneMap({
             </label>
           </fieldset>
         )}
-        {avecEncart &&
-          (encartOuvert ? (
-            <section
-              ref={encart}
-              id={ids.encart}
-              className={`${ui.encart} ${styles.encartVide}`}
-              aria-labelledby={`${ids.encart}-titre`}
-              data-obstacle
-            >
-              <h2 id={`${ids.encart}-titre`} ref={titreEncart} tabIndex={-1}>
-                {vide ? `${zone.nom} : aucun point recensé pour l'instant` : `${zone.nom} : seuls les maîtres de vol sont placés`}
-              </h2>
-              {/* Sur une carte basse, seul ce bloc défile : le titre et « Explorer la carte » restent visibles. */}
-              <div className={styles.corpsEncart}>
-                <p>
-                  {genre !== "nouvelle"
-                    ? "Les points de cette zone n'ont pas encore été ajoutés."
-                    : vide
-                      ? "C'est une nouvelle zone de Forever : ses PNJ et ressources n'existent pas dans les données de Classic. La communauté les ajoutera."
-                      : "C'est une nouvelle zone de Forever : ses maîtres de vol viennent des fichiers du jeu, mais ses autres PNJ et ses ressources n'existent pas dans les données de Classic. La communauté les ajoutera."}
-                </p>
-                {vide && voisines.length > 0 && (
-                  <ul className={styles.voisinesEncart} aria-label="Zones voisines">
-                    {voisines.map((e) => (
-                      <li key={e.slug}>
-                        <Link href={`/carte/${e.slug}`} className={`${ui.bouton} ${ui.compact}`}>
-                          {e.nom}
-                          {e.niveaux && <span className={styles.niveauxEncart}>{e.niveaux}</span>}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <button type="button" className={`${ui.bouton} ${ui.boutonPrincipal} ${ui.compact}`} onClick={fermerEncart}>
-                Explorer la carte
-              </button>
-            </section>
-          ) : (
-            <button
-              type="button"
-              className={`${ui.bouton} ${ui.compact} ${styles.rappelEncart}`}
-              aria-expanded={false}
-              onClick={ouvrirEncart}
-              data-obstacle
-            >
-              {vide ? (voisines.length > 0 ? "Aucun point ici · zones voisines" : "Aucun point ici") : "Zone à cartographier"}
-            </button>
-          ))}
         <div
           ref={conteneur}
           className={styles.carte}

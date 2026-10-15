@@ -138,6 +138,7 @@
   color: var(--c-text);
   font: inherit;
   font-size: max(16px, 1em);
+  text-overflow: ellipsis;
 }
 
 .champ::placeholder {
@@ -150,15 +151,6 @@
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-1);
-}
-
-.encart {
-  background: var(--c-surface-1);
-  border: 1px solid var(--c-border);
-  border-left: 3px solid var(--c-accent-fill);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-1);
-  font-size: var(--fs-sm);
 }
 
 .squelette {

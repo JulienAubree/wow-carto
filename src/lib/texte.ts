@@ -1,8 +1,10 @@
-// Comparaison sans accents ni casse : « feuillargent » trouve « Feuillargent », « acierite » trouve « Aciérite ».
+// Comparaison sans accents ni casse, apostrophes typographiques comprises : « eternite » trouve « Sommet d’Éternité »,
+// « rog'mar » (clavier d'ordinateur) trouve « Rog’mar » (clavier d'iOS).
 export function normaliser(texte: string) {
   return texte
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
+    .replace(/[’‘ʼ]/g, "'")
     .toLowerCase();
 }
 

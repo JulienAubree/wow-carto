@@ -1,6 +1,6 @@
 import { ZONES } from "../../scripts/donnees/zones";
 
-// Zones ajoutées par WoW: Forever : leurs points n'existent pas dans les données de Classic.
+// Zones ajoutées par WoW: Forever (groupe « Nouveautés de Forever » de l'accueil, pastille « Nouvelle zone »).
 export const NOUVELLES_FOREVER: ReadonlySet<string> = new Set([
   "mont-hyjal",
   "shen-dralas",

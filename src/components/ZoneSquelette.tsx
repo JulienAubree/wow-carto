@@ -11,14 +11,14 @@ export default function ZoneSquelette() {
           <span className={styles.barrePoignee} />
           <span className={`${ui.squelette} ${styles.squeletteTitre}`} />
         </div>
-        <div className={`${ui.squelette} ${styles.squeletteChamp}`} />
+        <div className={`${ui.squelette} ${styles.squeletteStatut}`} />
         <div className={styles.squeletteSegments}>
           <span className={ui.squelette} />
           <span className={ui.squelette} />
           <span className={ui.squelette} />
         </div>
         <ul className={styles.squeletteLignes}>
-          {Array.from({ length: 10 }, (_, i) => (
+          {Array.from({ length: 3 }, (_, i) => (
             <li key={i}>
               <span className={`${ui.squelette} ${styles.squeletteRond}`} />
               <span className={`${ui.squelette} ${styles.squeletteBarre}`} />

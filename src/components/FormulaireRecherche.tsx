@@ -7,7 +7,7 @@ import ui from "./ui.module.css";
 // Recherche dans toutes les zones, avec un libellé visible (accueil, page de recherche, 404).
 export default function FormulaireRecherche({
   id,
-  libelle = "Chercher un PNJ, une ressource ou une zone",
+  libelle = "Chercher par nom : zone, donjon, maître de vol",
   valeur,
 }: {
   id: string;
@@ -26,7 +26,7 @@ export default function FormulaireRecherche({
           type="search"
           name="q"
           defaultValue={valeur}
-          placeholder="Feuillargent, Doras, thorium…"
+          placeholder="Uldaman, Gadgetzan, Rog’mar…"
           minLength={2}
           required
           enterKeyHint="search"
@@ -40,9 +40,10 @@ export default function FormulaireRecherche({
   );
 }
 
-const EXEMPLES = ["Feuillargent", "Doras", "Hurlevent"];
+// Une entrée de donjon, un maître de vol neutre et une zone, distincts des exemples du champ.
+const EXEMPLES = ["Maraudon", "Ratchet", "Tanaris"];
 
-// « Essaie : Feuillargent · Doras · Hurlevent », en liens vers la recherche.
+// « Essaie : Maraudon · Ratchet · Tanaris », en liens vers la recherche.
 export function Exemples() {
   return (
     <p className={styles.exemples}>
