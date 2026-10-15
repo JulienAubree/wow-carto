@@ -1,6 +1,6 @@
 # Extraire les cartes et régénérer les points
 
-Les fichiers produits sont versionnés (`public/cartes/forever/*.webp`, `public/cartes/terrain/`, `data/forever/*.json`) : ces étapes ne servent qu'à les refaire, par exemple après une mise à jour de WoW: Forever. Il faut Python 3 ; Pillow pour les deux dernières étapes.
+Les fichiers produits sont versionnés (`public/cartes/forever/*.webp`, `public/cartes/terrain/`, `data/forever/*.json`) : ces étapes ne servent qu'à les refaire, par exemple après une mise à jour de WoW: Forever. Il faut Python 3 ; Pillow pour convertir les cartes et pour les contours des zones (étapes 2 et 4).
 
 ## 1. Extraire les cartes du client (sur l'ordinateur où le jeu est installé)
 
@@ -63,5 +63,23 @@ python3 -I scripts/donnees/extraire_client.py ~/extraction-cartes/tables ~/extra
 Écrit `data/forever/client.json` : les nœuds de vol affichés pour au moins une faction et que l'on apprend (pas les vols scriptés, comme ceux des tours des Maleterres de l'Est ou des druides à Havrenuit) et, pour chaque donjon et raid de Classic sauf Naxxramas (le client n'a pas de point pour lui), l'endroit où l'on revient en fantôme après une mort à l'intérieur, devant l'entrée. Chaque point est rangé dans la zone du site que le jeu lui donne : la zone du jeu qui porte le nom du lieu (Ironforge, Uldaman…) ou, à défaut, celle de sa parcelle, en remontant jusqu'à une carte du site qui couvre le point. Le script télécharge la structure des tables qui lui manque depuis [WoWDBDefs](https://github.com/wowdev/WoWDBDefs) dans `scripts/donnees/.dbd/` (ignoré par git), et signale les lignes que le serveur a corrigées dans le cache (aucune pour l'instant pour ces tables).
 
 Au déploiement suivant, `npm run db:import-classic` voit que le fichier a changé et synchronise les points importés sans changer leur identifiant, pour que les liens `?poi=` partagés restent bons : chaque point est reconnu par sa table et son identifiant dans le jeu, mis à jour sur place, ajouté s'il est nouveau, supprimé s'il a disparu du fichier. Les points que la communauté a modifiés ou référencés (version > 1, contribution, signalement, confirmation) ne sont pas touchés, et un point masqué par la modération le reste. `-- --remplacer` force cette synchronisation.
+
+## 4. Contours des zones sur les cartes des continents
+
+L'accueil sur ordinateur montre les cartes de Kalimdor et des Royaumes de l'Est, où l'on clique sur une zone ; la forme de chaque zone vient de `data/forever/contours.json` (en pixels des cartes de continent, 1002 x 668), écrit par `contours.py`. Sans argument, le script lit les frontières dessinées sur `public/cartes/forever/<continent>.webp` (il faut Pillow) :
+
+```bash
+python3 -I scripts/cartes/contours.py
+```
+
+Chaque zone s'étend depuis une ou plusieurs graines placées à la main (`GRAINES` dans le script) sur les terres de l'image, sans passer par la mer (bleue ou hachurée) ; un pixel va à la zone qui l'atteint au moindre coût, et un trait sombre coûte cher à franchir : les zones s'arrêtent aux frontières dessinées. Les terres qui ne sont à aucune zone du site (le cadre, Quel'Thalas, Gilnéas…) partent des bords de l'image et des graines `""`. Le script vérifie ensuite que les points du client (`data/forever/client.json`) tombent dans leur zone, à 4 pixels près, et signale les autres : après une nouvelle image, c'est là qu'on voit s'il faut déplacer ou ajouter une graine.
+
+Avec les tables et les zones des parcelles de l'étape 1, chaque parcelle va plutôt à la zone du site que le jeu lui donne, comme les points de l'étape 3 (la pleine mer n'est à aucune zone) ; les formes suivent alors le terrain du jeu, qui ne tombe pas toujours sur les frontières dessinées :
+
+```bash
+python3 -I scripts/cartes/contours.py ~/extraction-cartes/tables ~/extraction-cartes/aires/aires.json
+```
+
+Le champ `"source"` du fichier dit lequel des deux l'a produit (`"image"` ou `"aires"`). Les villes n'ont pas de forme : elles sont au-dessus du terrain de la zone qui les entoure, et l'accueil les montre par un repère à la place donnée par `"point"`. Une zone sans forme sur la carte de son continent (polygones vides) est proposée en lien sous les cartes.
 
 Les slugs des zones doivent rester alignés entre `scripts/cartes/forever.py` et `scripts/donnees/zones.ts`.

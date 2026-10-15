@@ -1,0 +1,52 @@
+/* Même requête que les cartes de l'accueil (accueil.module.css) : ordinateur avec souris, à partir de 1 100 px. */
+
+.rangee {
+  display: none;
+}
+
+.bouton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--c-accent);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.bouton:hover {
+  text-decoration-color: currentColor;
+}
+
+.bouton svg {
+  transition: transform var(--duree);
+}
+
+.bouton[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .rangee {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-5);
+  }
+
+  .liens {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .liste:not([data-ouverte]) {
+    display: none;
+  }
+}

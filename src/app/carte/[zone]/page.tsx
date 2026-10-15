@@ -1,31 +1,110 @@
 import { Suspense } from "react";
+import { preload } from "react-dom";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FlecheRetour } from "@/components/Icones";
+import StyleActif from "@/components/StyleActif";
 import ZoneMapLoader from "@/components/ZoneMapLoader";
-import { chargerZone, etiquettesVoisines } from "@/lib/queries";
+import ZoneSquelette from "@/components/ZoneSquelette";
+import ui from "@/components/ui.module.css";
+import { nombreDeType } from "@/lib/categories";
+import { chargerZone, compterPoints, etiquettesVoisines, nomPoi, resumeZone } from "@/lib/queries";
+import { OPEN_GRAPH } from "@/lib/site";
+import { formatNiveaux } from "@/lib/texte";
+import type { ZoneCarte } from "@/lib/types";
+import { genreZone } from "@/lib/zones";
+import styles from "./zone.module.css";
+
+// La carte occupe toute la hauteur : la page ne défile pas et le pied est masqué. Fenêtre basse en mise en page
+// mobile (zoom à 400 %) : la page défile, la carte garde la hauteur sous l'en-tête (ZoneMap.module.css).
+const PLEIN_ECRAN =
+  "@media (min-width:721px),(min-height:481px){body{height:100dvh}}" +
+  ".pied{display:none}.contenu{max-width:none;padding:0;min-height:0;display:flex;flex-direction:column}";
+
+function idPoi(valeur: string | string[] | undefined) {
+  const id = Number(valeur);
+  return Number.isInteger(id) && id > 0 && id <= 2 ** 31 - 1 ? id : undefined;
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps<"/carte/[zone]">): Promise<Metadata> {
+  const [{ zone: slug }, { poi }] = await Promise.all([params, searchParams]);
+  const zone = await resumeZone(slug);
+  if (!zone) return { title: "Zone introuvable" };
+  const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
+  const id = idPoi(poi);
+  const [point, comptes] = await Promise.all([id ? nomPoi(id, zone.id) : null, compterPoints(zone.id)]);
+  // « 2 maîtres de vol et 1 entrée de donjon » : l'aperçu d'un lien partagé ne promet que ce que la zone contient.
+  const contenu = comptes.length
+    ? new Intl.ListFormat("fr", { type: "conjunction" }).format(
+        comptes.map((c) => nombreDeType(c.nombre, c.categorieSlug, c.categorieNom, c.role ?? undefined)),
+      )
+    : "pas encore de point dans cette zone, les joueurs pourront bientôt en ajouter";
+  return {
+    title: point ? `${point} · ${zone.nom}` : zone.nom,
+    description: `${zone.nom}${niveaux ? ` (niveaux ${niveaux})` : ""} sur la carte communautaire de WoW: Forever : ${contenu}.`,
+    openGraph: { ...OPEN_GRAPH, images: [{ url: zone.carteUrl, width: 1002, height: 668, alt: `Carte : ${zone.nom}` }] },
+    alternates: { canonical: `/carte/${zone.slug}` },
+  };
+}
+
+function BarreZone({ zone, nbPoints }: { zone: ZoneCarte; nbPoints: number }) {
+  const niveaux = formatNiveaux(zone.niveauMin, zone.niveauMax);
+  const genre = genreZone(zone.slug);
+  const continent = zone.continentSlug ? `/#${zone.continentSlug}` : "/";
+  return (
+    <header className={styles.barreZone}>
+      <nav aria-label="Fil d'Ariane" className={styles.ariane}>
+        <ol>
+          <li>
+            <Link href="/">Zones</Link>
+          </li>
+          {zone.continentNom && (
+            <li>
+              <span aria-hidden="true">›</span>
+              <Link href={continent}>{zone.continentNom}</Link>
+            </li>
+          )}
+        </ol>
+      </nav>
+      <Link href={continent} className={styles.retour} aria-label="Toutes les zones">
+        <FlecheRetour />
+      </Link>
+      <h1>{zone.nom}</h1>
+      {niveaux && <span className={ui.pilule}>Niv. {niveaux}</span>}
+      {genre === "nouvelle" && <span className={`${ui.pilule} ${ui.pilulePlus}`}>Nouvelle zone</span>}
+      {genre === "ville" && <span className={ui.pilule}>Ville</span>}
+      <span className={styles.compteur}>
+        {nbPoints > 0 ? `${nbPoints.toLocaleString("fr-FR")} point${nbPoints > 1 ? "s" : ""}` : "aucun point pour l'instant"}
+      </span>
+    </header>
+  );
+}
+
+function BarreZoneSquelette() {
+  return (
+    <div className={styles.barreZone} aria-hidden="true">
+      <span className={`${ui.squelette} ${styles.titreSquelette}`} />
+    </div>
+  );
+}
 
 async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
   const [{ zone: slug }, recherche] = await Promise.all([params, searchParams]);
   const [donnees, etiquettes] = await Promise.all([chargerZone(slug), etiquettesVoisines(slug)]);
   if (!donnees) notFound();
-  const poi = Number(recherche.poi);
+  const { zone } = donnees;
+  // La carte du jeu s'affiche d'abord : on la demande avant que Leaflet ne soit chargé.
+  if (!zone.monde || zone.monde.carteParDefaut) preload(zone.carteUrl, { as: "image", fetchPriority: "high" });
   const q = typeof recherche.q === "string" ? recherche.q : undefined;
   return (
     <>
-      <p style={{ fontSize: "0.9rem", marginBottom: 4 }}>
-        <Link href="/">← Toutes les zones</Link>
-      </p>
-      <h1 style={{ fontSize: "1.25rem", marginBottom: 12 }}>{donnees.zone.nom}</h1>
-      {donnees.pois.length === 0 && (
-        <p style={{ fontSize: "0.9rem", marginBottom: 12, color: "var(--muted)" }}>
-          Aucun point dans cette zone pour l&apos;instant : les nouvelles zones de Forever seront complétées par les joueurs.
-        </p>
-      )}
+      <BarreZone zone={zone} nbPoints={donnees.pois.length} />
       <ZoneMapLoader
         key={`${slug}-${q ?? ""}`}
         {...donnees}
         etiquettes={etiquettes}
-        poiInitial={Number.isInteger(poi) && poi > 0 ? poi : undefined}
+        poiInitial={idPoi(recherche.poi)}
         rechercheInitiale={q}
       />
     </>
@@ -34,8 +113,18 @@ async function CarteZone({ params, searchParams }: PageProps<"/carte/[zone]">) {
 
 export default function PageZone(props: PageProps<"/carte/[zone]">) {
   return (
-    <Suspense fallback={<p>Chargement de la zone…</p>}>
-      <CarteZone {...props} />
-    </Suspense>
+    <div className={styles.pageCarte}>
+      <StyleActif css={PLEIN_ECRAN} />
+      <Suspense
+        fallback={
+          <>
+            <BarreZoneSquelette />
+            <ZoneSquelette />
+          </>
+        }
+      >
+        <CarteZone {...props} />
+      </Suspense>
+    </div>
   );
 }

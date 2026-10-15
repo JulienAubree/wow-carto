@@ -1,0 +1,206 @@
+/* Carte d'un continent sur l'accueil : l'image du jeu, les zones en SVG par-dessus, les repères des villes et
+   l'étiquette de la zone survolée en HTML (taille fixe quelle que soit la taille de la carte). --rapport : largeur
+   sur hauteur du cadrage. */
+
+.carte {
+  position: relative;
+  aspect-ratio: var(--rapport);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #3a2c18;
+  box-shadow: var(--shadow-2);
+}
+
+.calque {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Largeur et décalage posés par le composant : seul le cadrage est visible. */
+.fond {
+  position: absolute;
+  top: 0;
+  display: block;
+  height: 100%;
+}
+
+.zone {
+  cursor: pointer;
+}
+
+.zone path {
+  fill: transparent;
+}
+
+/* Le contour de focus suit la forme de la zone (.anneau) ; celui des liens SVG serait un rectangle. */
+.zone:focus-visible {
+  outline: none;
+}
+
+/* Disque invisible de 24 px autour du cœur de la zone, quelle que soit la taille de la carte. */
+.cible {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
+}
+
+.eclairage {
+  pointer-events: none;
+}
+
+.apparition {
+  animation: apparition var(--duree) ease-out;
+}
+
+.bordure {
+  fill: none;
+  stroke: rgb(255 246 220 / 0.9);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Contour de focus : brun très sombre, au moins 3:1 sur le parchemin comme sur la mer, sur un halo clair. */
+.halo,
+.anneau {
+  fill: none;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.halo {
+  stroke: var(--map-ring);
+  stroke-width: 6px;
+}
+
+.anneau {
+  stroke: var(--map-glyph);
+  stroke-width: 2.5px;
+}
+
+/* Repère d'une ville : un point et son nom, comme les noms de la vue terrain. Le point est centré sur la ville. Pour la
+   souris, seul le point est une cible (24 px, ::after) : le nom laisse passer le survol et le clic vers les zones
+   qu'il recouvre. */
+.repere {
+  position: absolute;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 8px 2px 5px;
+  border-radius: var(--radius-pill);
+  transform: translate(-10px, -50%);
+  color: var(--map-label);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-decoration: none;
+  text-shadow:
+    0 0 2px #000,
+    0 0 6px rgb(0 0 0 / 0.85);
+  white-space: nowrap;
+  transition: background-color var(--duree);
+}
+
+.repere::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--map-label);
+  box-shadow:
+    0 0 0 2px var(--map-glyph),
+    0 0 4px rgb(0 0 0 / 0.8);
+}
+
+.repere::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 12px);
+  left: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+/* Nom du côté où la carte a le plus de place. */
+.repere[data-gauche] {
+  flex-direction: row-reverse;
+  padding: 2px 5px 2px 8px;
+  transform: translate(calc(10px - 100%), -50%);
+}
+
+.repere[data-gauche]::after {
+  left: auto;
+  right: -2px;
+}
+
+.repere:hover,
+.repere[data-actif] {
+  background: var(--map-chip);
+  color: var(--map-label);
+}
+
+.repere:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Étiquette de la zone survolée (placée par le composant). */
+.etiquette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 6px 12px 7px;
+  border-radius: var(--radius-md);
+  background: rgb(20 18 14);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+  color: var(--map-label);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: apparition var(--duree) ease-out;
+}
+
+.nomEtiquette {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+}
+
+.details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.nouveau {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  color: #f0c873;
+}
+
+@keyframes apparition {
+  from {
+    opacity: 0;
+  }
+}

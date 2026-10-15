@@ -1,20 +1,90 @@
 :root {
-  --background: #f6f3ec;
-  --foreground: #1d1a16;
-  --accent: #b5832a;
-  --muted: #6b645a;
+  color-scheme: light;
+
+  /* Couleurs, thème clair « parchemin » */
+  --c-bg: #f5efe3;
+  --c-surface-1: #fffaf0; /* en-tête, cartes, panneau, fiches */
+  --c-surface-2: #ece3d1; /* survol, puces, segment actif, fond de la vue parchemin */
+  --c-border: #dccfb8; /* séparateurs décoratifs */
+  --c-border-strong: #8c7a5e; /* contour des champs et des boutons contour (≥ 3:1) */
+  --c-text: #231d15;
+  --c-text-muted: #6a5f4f;
+  --c-accent: #8a5a12; /* liens et texte accentué */
+  --c-accent-fill: #c9952f; /* fond des boutons principaux et du segment actif */
+  --c-on-accent: #1a1409; /* texte posé sur --c-accent-fill */
+  --c-selected: #8a5a12; /* segment actif, case cochée : ≥ 3:1 sur les surfaces */
+  --c-on-selected: #fffaf0;
+  --c-focus: #9a6614;
+  --c-alliance: #2f5fa8;
+  --c-horde: #a8322a;
+  --c-overlay: rgb(255 250 240 / 0.94); /* contrôles posés sur la carte */
+  --shadow-1: 0 1px 2px rgb(40 28 10 / 0.12);
+  --shadow-2: 0 6px 18px rgb(40 28 10 / 0.18), 0 1px 3px rgb(40 28 10 / 0.12);
+
+  /* Carte : identiques dans les deux thèmes */
+  --map-sea: #0c141c; /* la mer profonde des tuiles (mesurée #0c141d) */
+  --map-label: #f4e6c4;
+  --map-glyph: #1a140c;
+  --map-ring: #fffaf0;
+  --map-cluster-bg: rgb(26 20 9 / 0.82);
+  --map-cluster-text: #fbf3e0;
+  --map-chip: rgb(20 18 14 / 0.8); /* coordonnées, survol des étiquettes */
+  --map-alliance: #2a5cb8; /* encoche de faction des marqueurs */
+  --map-horde: #c0352b;
+
+  /* Typographie */
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --font-display: var(--font-alegreya, "Palatino Linotype", "Book Antiqua", Georgia, serif);
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.5rem;
+  --fs-2xl: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
+  --lh-tight: 1.15;
+  --lh-body: 1.5;
+
+  /* Espacements, rayons, dimensions */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius-sm: 4px; /* puces de code, survol de lignes */
+  --radius-md: 8px; /* champs, boutons, contrôles */
+  --radius-lg: 12px; /* cartes, panneau, cadre de carte, fiches */
+  --radius-pill: 999px;
+  --header-h: 52px;
+  --zonebar-h: 48px;
+  --sheet-peek: 76px; /* hauteur du sheet mobile fermé (mesurée par la carte, ceci pour le squelette) */
+  --duree: 120ms;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #121416;
-    --foreground: #ece7dd;
-    --accent: #e0b25c;
-    --muted: #a59d90;
-  }
-  html {
+  /* Sélecteur prêt pour un futur choix manuel du thème */
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --c-bg: #14120f;
+    --c-surface-1: #1d1a16;
+    --c-surface-2: #27231d;
+    --c-border: #3a332a;
+    --c-border-strong: #7d705d;
+    --c-text: #ece4d4;
+    --c-text-muted: #a89d8b;
+    --c-accent: #e3b65e;
+    --c-accent-fill: #d9a441;
+    --c-on-accent: #1a1409;
+    --c-selected: #d9a441;
+    --c-on-selected: #1a1409;
+    --c-focus: #f0c873;
+    --c-alliance: #6f9be0;
+    --c-horde: #e0675d;
+    --c-overlay: rgb(29 26 22 / 0.94);
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.4);
   }
 }
 
@@ -24,46 +94,209 @@
   margin: 0;
 }
 
-html,
-body {
-  height: 100%;
+html {
+  accent-color: var(--c-selected);
+  -webkit-text-size-adjust: 100%;
+  /* L'en-tête collant ne cache pas l'élément qui prend le focus ou la cible d'une ancre. */
+  scroll-padding-top: calc(var(--header-h) + var(--space-2));
 }
 
 body {
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100dvh;
+  color: var(--c-text);
+  background: var(--c-bg);
+  font-family: var(--font-body);
+  line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  letter-spacing: 0.01em;
 }
 
 a {
   color: inherit;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
 }
 
-.entete {
-  padding: 12px 16px;
-  font-weight: 700;
-  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
+a:hover {
+  color: var(--c-accent);
+  text-decoration-color: currentColor;
 }
 
-.entete a {
+:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Mot composé (« Pins-Argentés », « CC BY-SA ») : pas de retour à la ligne au trait d'union. */
+.insecable {
+  white-space: nowrap;
+}
+
+/* Lien d'évitement : hors du flux, visible seulement au focus. */
+.evitement {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--c-accent-fill);
+  color: var(--c-on-accent);
+  font-weight: 600;
   text-decoration: none;
-  color: var(--accent);
+  transform: translateY(-200%);
 }
 
+.evitement:focus-visible {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    /* Aucune transition, même brève : Leaflet rend la fiche visible juste avant d'y mettre le focus, et une
+       transition de visibility la laisserait encore cachée à cet instant (focus perdu, Échap sans effet). */
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* En-tête */
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  background: var(--c-surface-1);
+  border-bottom: 1px solid var(--c-border);
+  box-shadow: var(--shadow-1);
+}
+
+.marque {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--c-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.marque:hover {
+  color: var(--c-text);
+}
+
+.marque svg {
+  flex: none;
+  color: var(--c-accent-fill);
+}
+
+.mentionNonOfficiel {
+  flex: none;
+}
+
+.rechercheEntete {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rechercheEntete input {
+  width: 260px;
+}
+
+.lienRecherche {
+  display: none;
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--c-text);
+}
+
+.lienRecherche:hover {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+@media (max-width: 720px) {
+  .rechercheEntete {
+    display: none;
+  }
+  .lienRecherche {
+    display: grid;
+  }
+}
+
+@media (max-width: 480px) {
+  .mentionNonOfficiel {
+    display: none;
+  }
+}
+
+/* Contenu */
 .contenu {
-  flex: 1;
-  padding: 16px;
+  min-width: 0;
+  padding: var(--space-4);
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
 }
 
+.contenu:focus {
+  outline: none;
+}
+
+/* Pied de page */
 .pied {
-  padding: 12px 16px;
-  font-size: 0.8rem;
-  color: var(--muted);
-  text-align: center;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  border-top: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
 }
