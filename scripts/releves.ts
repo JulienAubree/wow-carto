@@ -9,8 +9,9 @@
 // 3. agreger() recalcule les points des PNJ à partir de toutes les observations des envois acceptés :
 //    - les positions d'un même PNJ dans une même zone, à moins de RAYON mètres du jeu les unes des
 //      autres, forment un groupe ;
-//    - un point de Classic « à vérifier » de ce PNJ à moins de RAYON mètres du groupe est confirmé : il
-//      est publié, à sa position de Classic, avec le nom relevé dans Forever ;
+//    - le point de ce PNJ le plus proche du groupe, à moins de RAYON mètres, est repris : un point de
+//      Classic « à vérifier » est publié, à sa position de Classic, avec le nom relevé dans Forever ; un
+//      point des relevés suit la position médiane du groupe ;
 //    - sinon, un nouveau point est publié à la position médiane du groupe, s'il dit ce qu'est le PNJ
 //      (formateur, marchand, donneur ou destinataire de quête) ;
 //    - un point confirmé ou ajouté que plus aucune observation ne soutient (envoi écarté) revient à
@@ -489,58 +490,41 @@ export async function agreger() {
 
     // Points d'un groupe : ceux du PNJ à moins de RAYON de sa médiane. Un point des relevés, placé à la
     // médiane d'observations, l'est aussi à moins de RAYON d'une de ses observations, si le groupe aurait
-    // pu le créer (catégorie et nom de Forever).
-    // - Un point masqué ou modifié par la communauté absorbe tous ces groupes sans être changé : c'est ce
-    //   PNJ qu'on a choisi de cacher ou de décrire autrement.
-    // - Sinon, chaque groupe reprend au plus un point et chaque point au plus un groupe, quel que soit
-    //   l'ordre des groupes : le plus de groupes possible gardent un point existant (et son identifiant),
-    //   puis les points de Classic passent avant ceux des relevés (un point de Classic confirmé à nouveau
-    //   reprend sa place devant un point des relevés créé entre-temps), puis les plus proches.
-    const paires: { groupe: number; point: Existant; rang: number; d: number }[] = [];
+    // pu le créer (catégorie et nom de Forever) ou s'il est masqué ou modifié par la communauté (figé).
+    // Chaque groupe va à son point le plus proche de sa médiane, les paires les plus proches d'abord, quel
+    // que soit l'ordre des groupes ; chaque point va au plus à un groupe. Un point repris par un groupe se
+    // retrouve à sa médiane (point des relevés) ou n'a pas bougé (point de Classic) : au déploiement
+    // suivant, sans nouveau relevé, chaque groupe reprend le même point.
+    // - Un groupe dont le point le plus proche est figé est absorbé : il ne change rien, ni ce point, ni
+    //   les autres points auxquels il touche (un point de Classic voisin n'est pas publié, un point publié
+    //   n'est pas caché). C'est ce PNJ qu'on a choisi de cacher ou de décrire autrement.
+    const paires: { groupe: number; point: Existant; fige: boolean; d: number }[] = [];
     groupes.forEach((g, i) => {
       const categorie = categorieDuGroupe(g);
       for (const p of parPnjEtZoneExistants.get(`${g.pnjId}|${g.zoneId}`) ?? []) {
         const fige = p.touche || p.statut === "masque";
-        let d = distance(g.zoneId, p, g);
+        const d = distance(g.zoneId, p, g);
+        let proche = d <= RAYON;
         if (p.donnees.source === "releves") {
           if (!fige && (!categorie || !categories.get(categorie) || pnj.get(g.pnjId)?.source !== "releves")) continue;
-          for (const o of g.observations) d = Math.min(d, distance(g.zoneId, p, o));
+          proche ||= g.observations.some((o) => distance(g.zoneId, p, o) <= RAYON);
         }
-        const rang = fige ? 0 : p.donnees.source === "classic" ? 1 : 2;
-        if (d <= RAYON) paires.push({ groupe: i, point: p, rang, d });
+        if (proche) paires.push({ groupe: i, point: p, fige, d });
       }
     });
-    paires.sort((a, b) => a.rang - b.rang || a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
+    paires.sort((a, b) => a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
     const absorbes = new Set<number>();
-    const candidats = new Map<number, Existant[]>();
-    for (const { groupe, point, rang } of paires) {
-      if (rang === 0) absorbes.add(groupe);
-      else if (!absorbes.has(groupe)) candidats.set(groupe, [...(candidats.get(groupe) ?? []), point]);
-    }
+    const vus = new Set<number>();
     const choix = new Map<number, Existant>();
-    const titulaires = new Map<number, number>();
-    for (const { groupe, point } of paires) {
-      if (!candidats.has(groupe) || choix.has(groupe) || titulaires.has(point.id) || apparies.has(point.id)) continue;
+    for (const { groupe, point, fige } of paires) {
+      // La première paire d'un groupe est celle de son point le plus proche.
+      if (!vus.has(groupe) && fige) absorbes.add(groupe);
+      vus.add(groupe);
+      if (fige || absorbes.has(groupe) || choix.has(groupe) || apparies.has(point.id)) continue;
       choix.set(groupe, point);
-      titulaires.set(point.id, groupe);
+      apparies.add(point.id);
     }
-    // Un groupe resté sans point prend celui d'un groupe qui peut se rabattre sur un autre de ses points,
-    // de proche en proche (chemin augmentant).
-    const reprendre = (groupe: number, vus: Set<number>): boolean => {
-      for (const p of candidats.get(groupe)!) {
-        if (vus.has(p.id)) continue;
-        vus.add(p.id);
-        const titulaire = titulaires.get(p.id);
-        if (titulaire === undefined || reprendre(titulaire, vus)) {
-          choix.set(groupe, p);
-          titulaires.set(p.id, groupe);
-          return true;
-        }
-      }
-      return false;
-    };
-    for (const groupe of candidats.keys()) if (!choix.has(groupe)) reprendre(groupe, new Set());
-    for (const id of titulaires.keys()) apparies.add(id);
+    for (const { groupe, point } of paires) if (absorbes.has(groupe)) apparies.add(point.id);
 
     const aJour: LignePoint[] = [];
     const aAjouter: (typeof schema.pois.$inferInsert)[] = [];
@@ -553,7 +537,7 @@ export async function agreger() {
       const candidat = choix.get(i);
       if (candidat) {
         const { touche, ...actuel } = candidat;
-        // Par sûreté : un point masqué ou touché absorbe ses groupes plus haut, il n'est jamais candidat.
+        // Par sûreté : un point figé n'est jamais choisi plus haut.
         if (touche || actuel.statut === "masque") return;
         let voulu: LignePoint;
         if (actuel.donnees.source === "classic") {

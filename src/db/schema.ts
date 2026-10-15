@@ -80,7 +80,8 @@ export const pnj = pgTable("pnj", {
   niveauMax: integer("niveau_max"),
   // normal, elite, rare, rareelite, worldboss.
   classification: text("classification"),
-  // D'où viennent ces informations : « releves » (vu en jeu dans Forever) ou « classic ».
+  // D'où viennent ces informations : « releves » (vu en jeu dans Forever), « classic », ou « retire »
+  // (fiche vidée que plus rien ne soutient, supprimée par l'import quand plus aucun point n'y renvoie).
   source: text("source").notNull(),
   donnees: jsonb("donnees").$type<Record<string, unknown>>().notNull().default({}),
   ...timestamps,
@@ -154,7 +155,8 @@ export const observations = pgTable(
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     envoiId: integer("envoi_id").notNull().references(() => envois.id, { onDelete: "cascade" }),
-    // Identité de l'observation (type, cible, lieu, heure) : la même, envoyée dans deux fichiers, compte une fois.
+    // Identité de l'observation (type, rôle, PNJ, quête, zone, x, y ; sans l'heure) : la même, envoyée dans
+    // deux fichiers, compte une fois.
     cle: text("cle").notNull(),
     // « pnj » : interaction avec un PNJ ; role dit laquelle (marchand, formateur, quete-debut, quete-fin, dialogue).
     type: text("type").notNull(),

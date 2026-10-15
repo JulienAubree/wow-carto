@@ -235,10 +235,13 @@ def main():
         """La créature a été vue (survol, cible, fenêtre) à cet endroit."""
         return any(proches(v, pos) for v in liste(dico(creatures.get(ident)).get("sightings")))
 
-    # Objets du jeu notés comme donneur ou destinataire d'une quête : leur numéro peut être celui d'une
-    # créature (la gaine de Trol'kalar, 2703, et Zengu, 2703).
+    # Objets du jeu notés comme donneur ou destinataire d'une quête, ou survolés (catalogue objects de
+    # l'addon) : leur numéro peut être celui d'une créature (la gaine de Trol'kalar, 2703, et Zengu, 2703).
     objets = [(qui.get("id"), qui.get("pos")) for rec in quetes_brutes.values() for qui in (rec.get("giver"), rec.get("ender"))
               if isinstance(qui, dict) and qui.get("kind") == "GameObject"]
+    for _, rec in catalogue(doc.get("objects")):
+        if isinstance(rec, dict) and entier(rec.get("objectID")):
+            objets += [(rec["objectID"], v) for v in liste(rec.get("sightings"))]
 
     def objet_ici(ident, pos):
         return any(o == ident and proches(lieu, pos) for o, lieu in objets)
@@ -247,8 +250,9 @@ def main():
     # numéro. Elle n'est retenue que si l'addon a compté une créature de ce numéro dans ce rôle. Un objet
     # du jeu (avis de recherche, plaque…) ouvre aussi des fenêtres de dialogue, jamais de marchand ni de
     # formateur : une fenêtre de dialogue n'est retenue que si la créature a été vue à cet endroit (l'addon
-    # la note à chaque fenêtre), ou, si cette position est sortie de ses 12 dernières, sous ce nom ou sans
-    # autre nom connu.
+    # la note à chaque fenêtre), ou, si cette position est sortie de ses 12 dernières, sous un nom déjà
+    # connu de la créature (y compris celui de ses fenêtres de marchand et de formateur) ou si elle n'en a
+    # aucun.
     fenetres = []
     for role, domaine in (("marchand", "vendors"), ("formateur", "trainers"), ("dialogue", "gossip")):
         for _, rec in catalogue(doc.get(domaine)):
@@ -256,23 +260,33 @@ def main():
                 continue
             ident = entier(rec.get("npc"))
             sources = dico(dico(creatures.get(ident)).get("sources"))
-            if not ident or (entier(sources.get(SOURCE_DU_ROLE[role])) or 0) <= 0:
-                continue
-            if (role != "dialogue" or vue_ici(ident, rec.get("pos")) or not connus.get(ident)
-                    or nom_valide(rec.get("name")) in connus[ident]):
+            if ident and (entier(sources.get(SOURCE_DU_ROLE[role])) or 0) > 0:
                 fenetres.append((entier(rec.get("t")) or 0, ident, role, rec))
+    for _, ident, role, rec in fenetres:
+        if role != "dialogue" and nom_valide(rec.get("name")):
+            connus.setdefault(ident, set()).add(nom_valide(rec["name"]))
+    fenetres = [(t, ident, role, rec) for t, ident, role, rec in fenetres
+                if role != "dialogue" or vue_ici(ident, rec.get("pos")) or not connus.get(ident)
+                or nom_valide(rec.get("name")) in connus[ident]]
+    # Endroits où l'addon a noté la créature elle-même : fenêtres retenues, donneur ou destinataire d'une
+    # quête.
+    lieux = {}
+    for (quete, bout), ident in givers.items():
+        lieux.setdefault(ident, []).append(quetes_brutes[quete][bout].get("pos"))
     proposees = {}
     for t, ident, role, rec in sorted(fenetres, key=lambda f: f[:3]):
         nommer(ident, rec.get("name"), t)
         observer(role, ident, rec.get("pos"), t)
+        lieux.setdefault(ident, []).append(rec.get("pos"))
         if role == "dialogue":
             proposees[ident] = {q.get("id") for q in liste(rec.get("quests")) if isinstance(q, dict) and q.get("available")}
 
     # Quête proposée : le numéro de l'événement est celui de la fenêtre, qui peut être un objet. Il est
-    # retenu pour une créature vue à cet endroit ; sinon, pas à l'endroit d'un objet de ce numéro noté sur
-    # une quête, et s'il est le donneur (créature) noté sur la quête, son destinataire quand la quête n'est
-    # pas donnée par un objet, ou une créature dont la fenêtre de dialogue proposait la quête. Le donneur
-    # noté sur la quête est celui de la dernière proposition (ou le joueur qui l'a partagée).
+    # retenu pour une créature vue à cet endroit ; sinon, pas à l'endroit d'un objet de ce numéro (noté sur
+    # une quête ou survolé), et s'il est le donneur (créature) noté sur la quête, une créature que l'addon a
+    # notée à cet endroit (fenêtre, autre quête), ou une créature dont la fenêtre de dialogue proposait la
+    # quête. Le donneur noté sur la quête est celui de la dernière proposition (ou le joueur qui l'a
+    # partagée).
     debuts = {}
     rendues = {}
     for ev in liste(doc.get("questEvents")):
@@ -283,10 +297,8 @@ def main():
             rendues.setdefault(quete, []).append((t, lieu))
         if ev.get("kind") != "offered" or not quete or not ident:
             continue
-        donneur = dico(dico(quetes_brutes.get(quete)).get("giver"))
         if not vue_ici(ident, lieu) and (objet_ici(ident, lieu) or not (
-                ident == givers.get((quete, "giver"))
-                or (ident == givers.get((quete, "ender")) and donneur.get("kind") != "GameObject")
+                ident == givers.get((quete, "giver")) or any(proches(l, lieu) for l in lieux.get(ident, []))
                 or quete in proposees.get(ident, ()))):
             continue
         observer("quete-debut", ident, lieu, t, quete)
