@@ -6,7 +6,9 @@ Il écrit tout à la déconnexion dans WTF/Account/<compte>/SavedVariables/Forev
 ["payload"] : une chaîne JSON. Seule cette chaîne est lue ; le Lua n'est jamais exécuté.
 
 Ne sont gardés que les éléments utiles à la carte, sans nom de personnage ni de royaume :
-- les PNJ (identifiant, nom, sous-titre, niveaux, faction, classification) ;
+- les PNJ (identifiant, nom, niveaux, faction, classification ; sous-titre seulement pour ceux avec qui
+  l'on a interagi), sans les créatures contrôlées par un joueur (familiers, gardiens, totems), dont le
+  sous-titre peut porter le nom du joueur ;
 - les quêtes (identifiant, titre, niveau, PNJ de départ et de fin, texte des objectifs) ;
 - les interactions avec un PNJ (marchand, formateur, dialogue, quête donnée ou rendue) : la position
   du joueur à ce moment-là, à quelques mètres du PNJ, sur la carte du jeu où il se trouvait.
@@ -15,9 +17,10 @@ Les positions sur une carte que le site n'a pas (grotte, instance…) sont ignor
 Usage :
   python3 -I scripts/donnees/extraire_releves.py <ForeverBeacon.lua> [<sortie>] [--beta | --live]
 Sortie par défaut : data/releves/foreverbeacon-<empreinte>.json.gz, importé par scripts/importer-classic.ts
-(npm run db:import-classic). --beta (par défaut si le chemin contient _classic_beta_) marque les relevés
-comme faits pendant la bêta de Forever.
+(npm run db:import-classic). Les relevés tous antérieurs au lancement (4 novembre 2026) sont marqués
+comme faits pendant la bêta de Forever ; --beta ou --live force le choix.
 """
+import datetime
 import gzip
 import hashlib
 import json
@@ -36,6 +39,7 @@ ECHAPPEMENTS = {b"n": b"\n", b"r": b"\r", b"t": b"\t", b'"': b'"', b"\\": b"\\",
 # Cartes de continent : un PNJ s'y voit sans zone précise, on ne s'en sert pas.
 CONTINENTS = {"kalimdor", "royaumes-de-l-est"}
 FACTIONS = {"Alliance": "alliance", "Horde": "horde", "Neutral": "neutre"}
+LANCEMENT = int(datetime.datetime(2026, 11, 4, tzinfo=datetime.timezone.utc).timestamp())
 # Deuxième ligne de l'infobulle quand le PNJ n'a pas de sous-titre : son niveau, pas un titre.
 LIGNE_NIVEAU = re.compile(r"^(Niveau|Level)\b|^\?\?")
 # Avancement du joueur dans un objectif de quête (« Bandit tué : 3/15 », « 0/8 Gerbes ») : retiré.
@@ -113,29 +117,26 @@ def main():
     if not args:
         raise SystemExit(__doc__)
     entree = args[0]
-    beta = "--beta" in sys.argv or ("--live" not in sys.argv and "_classic_beta_" in os.path.abspath(entree))
     with open(entree, "rb") as f:
         doc = lire_payload(f.read())
     client = doc.get("client") or {}
     if client.get("locale") and client["locale"] != "frFR":
         print(f"attention : client en {client['locale']}, les noms ne seront pas en français")
     position = Positions()
+    quetes_brutes = {}
+    for cle, rec in (doc.get("quests") or {}).items():
+        ident = entier(rec.get("id")) or (int(cle) if str(cle).isdigit() else None)
+        if ident:
+            quetes_brutes[ident] = rec
 
+    # Créatures du jeu (pas les objets : panneaux, avis de recherche…, numérotés à part). L'addon ne
+    # met dans npcs que des créatures, y compris quand on ouvre une fenêtre de marchand ou de dialogue.
     pnj = {}
-
-    def connaitre(ident, nom):
-        """Ajoute au catalogue un PNJ vu seulement dans une fenêtre (quête, marchand…)."""
-        if entier(ident) and texte(nom) and ident not in pnj:
-            pnj[ident] = {"id": ident, "nom": texte(nom)}
-
     for cle, rec in (doc.get("npcs") or {}).items():
         ident, nom = entier(rec.get("id")) or (int(cle) if str(cle).isdigit() else None), texte(rec.get("name"))
-        if not ident or not nom:
+        if not ident or not nom or rec.get("playerControlled"):
             continue
         p = {"id": ident, "nom": nom}
-        titre = texte(rec.get("title"))
-        if titre and not LIGNE_NIVEAU.search(titre) and titre != nom:
-            p["titre"] = titre
         if niveaux(rec):
             p["niveaux"] = niveaux(rec)
         if FACTIONS.get(rec.get("faction")):
@@ -144,14 +145,26 @@ def main():
             p["classification"] = rec["classification"]
         if texte(rec.get("creatureType")):
             p["type"] = rec["creatureType"]
+        titre = texte(rec.get("title"))
+        if titre and not LIGNE_NIVEAU.search(titre) and titre != nom:
+            p["titre"] = titre
         pnj[ident] = p
+    for rec in quetes_brutes.values():
+        for bout in ("giver", "ender"):
+            qui = rec.get(bout) or {}
+            if qui.get("kind") == "Creature" and entier(qui.get("id")) and texte(qui.get("name")) and qui["id"] not in pnj:
+                pnj[qui["id"]] = {"id": qui["id"], "nom": texte(qui["name"])}
+    interactions = set()
 
     observations = {}
 
     def observer(role, ident, pos, t=None, quete=None):
-        lieu = position(pos)
-        if not entier(ident) or not lieu:
+        if ident not in pnj:
             return
+        lieu = position(pos)
+        if not lieu:
+            return
+        interactions.add(ident)
         zone, x, y = lieu
         obs = {"type": "pnj", "role": role, "pnj": ident, "zone": zone, "x": x, "y": y}
         if entier(quete):
@@ -161,42 +174,66 @@ def main():
         cle = "|".join(str(obs.get(k, "")) for k in ("type", "role", "pnj", "quete", "zone", "x", "y", "t"))
         observations[cle] = obs
 
+    # Une fenêtre ouverte sur un objet porte l'identifiant de l'objet : son nom la trahit.
     for role, domaine in (("marchand", "vendors"), ("formateur", "trainers"), ("dialogue", "gossip")):
         for rec in (doc.get(domaine) or {}).values():
-            connaitre(rec.get("npc"), rec.get("name"))
-            observer(role, rec.get("npc"), rec.get("pos"), rec.get("t"))
+            ident = entier(rec.get("npc"))
+            if ident in pnj and texte(rec.get("name")) in (None, pnj[ident]["nom"]):
+                observer(role, ident, rec.get("pos"), rec.get("t"))
+
+    # Chaque quête proposée est notée avec l'heure : plusieurs passages renforcent la position. Le PNJ
+    # de l'événement est celui de la fenêtre, qui peut être un objet : on vérifie qu'il est bien le
+    # donneur (créature) noté sur la quête, ou une créature connue quand la quête n'en dit rien.
+    proposees = set()
+    for ev in doc.get("questEvents") or []:
+        quete, ident = entier(ev.get("questID")), entier(ev.get("npc"))
+        if ev.get("kind") != "offered" or not quete or not ident:
+            continue
+        donneur = (quetes_brutes.get(quete) or {}).get("giver") or {}
+        if donneur.get("id") == ident and donneur.get("kind") != "Creature":
+            continue
+        observer("quete-debut", ident, ev.get("pos"), ev.get("t"), quete)
+        proposees.add((quete, ident))
 
     quetes = []
-    for cle, rec in (doc.get("quests") or {}).items():
-        ident, titre = entier(rec.get("id")) or (int(cle) if str(cle).isdigit() else None), texte(rec.get("title"))
-        if not ident or not titre:
+    for ident, rec in sorted(quetes_brutes.items()):
+        titre = texte(rec.get("title"))
+        if not titre:
             continue
         q = {"id": ident, "titre": titre}
         if entier(rec.get("level")) and rec.get("levelSource") == "quest":
             q["niveau"] = rec["level"]
         for bout, role in (("giver", "debut"), ("ender", "fin")):
             qui = rec.get(bout) or {}
-            if qui.get("kind") == "Creature" and entier(qui.get("id")):
+            if qui.get("kind") == "Creature" and entier(qui.get("id")) in pnj:
                 q[role] = qui["id"]
-                connaitre(qui["id"], qui.get("name"))
-                observer("quete-" + role, qui["id"], qui.get("pos"), quete=ident)
+                # La position du donneur est déjà notée, avec l'heure, par l'événement « offered ».
+                if role == "fin" or (ident, qui["id"]) not in proposees:
+                    observer("quete-" + role, qui["id"], qui.get("pos"), quete=ident)
         objectifs = [texte(AVANCEMENT.sub("", o.get("text") or "")) for o in (rec.get("objectives") or []) if isinstance(o, dict)]
         if any(objectifs):
             q["objectifs"] = [o for o in objectifs if o]
         quetes.append(q)
 
-    # Chaque quête proposée est aussi notée avec l'heure : plusieurs passages renforcent la position.
-    for ev in doc.get("questEvents") or []:
-        if ev.get("kind") == "offered" and entier(ev.get("npc")):
-            observer("quete-debut", ev["npc"], ev.get("pos"), ev.get("t"), ev.get("questID"))
+    # Le sous-titre d'une créature croisée sans interaction peut être autre chose qu'une fonction.
+    for ident, p in pnj.items():
+        if ident not in interactions:
+            p.pop("titre", None)
 
+    heures = [o["t"] for o in observations.values() if "t" in o]
+    if "--beta" in sys.argv or "--live" in sys.argv:
+        beta = "--beta" in sys.argv
+    elif heures:
+        beta = max(heures) < LANCEMENT
+    else:
+        beta = "_classic_beta_" in os.path.abspath(entree)
     resultat = {
         "source": "foreverbeacon",
         "build": texte(client.get("version")) and f"{client['version']}.{client.get('build')}",
         "locale": client.get("locale"),
         "beta": beta,
         "pnj": sorted(pnj.values(), key=lambda p: p["id"]),
-        "quetes": sorted(quetes, key=lambda q: q["id"]),
+        "quetes": quetes,
         "observations": sorted(observations.values(), key=lambda o: (o["zone"], o["pnj"], o["role"], o.get("t", 0), o["x"], o["y"])),
     }
     contenu = json.dumps(resultat, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -206,7 +243,8 @@ def main():
     with open(sortie, "wb") as f:
         f.write(gzip.compress(contenu, mtime=0))
     print(f"{sortie} : {len(resultat['pnj'])} PNJ, {len(resultat['quetes'])} quêtes, "
-          f"{len(resultat['observations'])} interactions placées", dict(Counter(o["role"] for o in observations.values())))
+          f"{len(resultat['observations'])} interactions placées", dict(Counter(o["role"] for o in observations.values())),
+          "(bêta)" if beta else "")
     if position.ignorees:
         print("positions ignorées :", dict(position.ignorees.most_common(12)))
 

@@ -8,6 +8,7 @@ CREATE TABLE "envois" (
 	"auteur_id" integer,
 	"statut" "envoi_statut" DEFAULT 'accepte' NOT NULL,
 	"resume" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"fiches" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "envois_empreinte_unique" UNIQUE("empreinte")
 );

@@ -13,7 +13,9 @@ Les fichiers de ce dossier sont considérés comme fiables. Ils ne contiennent n
 2. Copier, sans rien modifier dans le dossier du jeu :
    `/Applications/World of Warcraft/_classic_beta_/WTF/Account/<compte>/SavedVariables/ForeverBeacon.lua`
    (`_classic_` à la place de `_classic_beta_` après le lancement).
-3. Lancer `python3 -I scripts/donnees/extraire_releves.py <copie de ForeverBeacon.lua>` : le script écrit ici `foreverbeacon-<empreinte>.json.gz` et dit ce qu'il a gardé.
+3. Lancer `python3 -I scripts/donnees/extraire_releves.py <copie de ForeverBeacon.lua>` : le script écrit ici `foreverbeacon-<empreinte>.json.gz` et dit ce qu'il a gardé. Les relevés faits avant le lancement du 4 novembre 2026 sont marqués « bêta ».
 4. Versionner ce fichier et déployer.
 
 ForeverBeacon peut réécrire son fichier à zéro à chaque séance : il faut donc le copier après chaque séance. Un fichier déjà importé (même contenu) est ignoré.
+
+Retirer un fichier du dossier ne retire pas ce qu'il a apporté : pour cela, passer son envoi à `ecarte` dans la table `envois`, puis relancer l'import. Ses points redeviennent « à vérifier » (cachés) et ses noms de PNJ et de quêtes sont retirés.

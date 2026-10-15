@@ -3,7 +3,7 @@
 //   publiés ;
 // - data/classic/pnj.json.gz : PNJ fixes de WoW Classic (donneurs de quêtes, marchands, services…),
 //   importés « à vérifier », donc invisibles sur le site tant qu'un relevé en jeu ne les confirme pas ;
-// puis les relevés en jeu de data/releves/ (voir scripts/releves.ts).
+// - les relevés en jeu de data/releves/, qui confirment ou ajoutent des PNJ (voir scripts/releves.ts).
 // Remplace la zone de démonstration. Idempotent : zones et catégories sont mises à jour. Quand un
 // fichier de points change (nouvelle extraction) ou avec --remplacer, ses points sont synchronisés avec
 // lui sans changer d'identifiant (les liens ?poi= restent bons) : mis à jour sur place, ajoutés, ou
@@ -13,13 +13,11 @@
 //
 // Usage : npm run db:import-classic [-- --remplacer]
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { gunzipSync } from "node:zlib";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../src/db";
-import { canonique, mettreAJourPoints, TOUCHE, type LignePoint } from "./donnees/outils";
+import { canonique, FICHIER_CLASSIC, lireDonnees, mettreAJourPoints, TOUCHE, type LignePoint } from "./donnees/outils";
 import { CATEGORIES, CONTINENTS, ZONES } from "./donnees/zones";
-import { importerReleves } from "./releves";
+import { agreger, importerFichiers, recalculerFiches } from "./releves";
 
 type PointImporte = {
   zone: string;
@@ -64,7 +62,7 @@ const IMPORTS: Import[] = [
   },
   {
     nom: "PNJ de Classic",
-    fichier: new URL("../data/classic/pnj.json.gz", import.meta.url),
+    fichier: FICHIER_CLASSIC,
     sources: ["classic"],
     statut: "a_verifier",
     // Le PNJ et sa position dans Classic.
@@ -113,46 +111,8 @@ async function supprimerDemo() {
   console.log("Zone de démonstration supprimée.");
 }
 
-// Fiches des PNJ d'après leurs points de Classic. Une fiche déjà remplie par un relevé en jeu n'est
-// pas touchée.
-async function importerFichesClassic(points: PointImporte[]) {
-  const fiches = new Map<number, typeof schema.pnj.$inferInsert>();
-  for (const p of points) {
-    const id = pnjDuPoint(p);
-    if (id === null || fiches.has(id)) continue;
-    const niveaux = p.donnees.niveaux as [number, number] | undefined;
-    fiches.set(id, {
-      id,
-      nom: p.nom,
-      faction: typeof p.donnees.faction === "string" ? p.donnees.faction : null,
-      niveauMin: niveaux?.[0] ?? null,
-      niveauMax: niveaux?.[1] ?? null,
-      source: "classic",
-    });
-  }
-  const valeurs = [...fiches.values()];
-  for (let i = 0; i < valeurs.length; i += 1000) {
-    await db
-      .insert(schema.pnj)
-      .values(valeurs.slice(i, i + 1000))
-      .onConflictDoUpdate({
-        target: schema.pnj.id,
-        set: {
-          nom: sql`excluded.nom`,
-          faction: sql`excluded.faction`,
-          niveauMin: sql`excluded.niveau_min`,
-          niveauMax: sql`excluded.niveau_max`,
-          updatedAt: sql`now()`,
-        },
-        setWhere: sql`${schema.pnj.source} = 'classic' and (${schema.pnj.nom}, ${schema.pnj.faction}, ${schema.pnj.niveauMin}, ${schema.pnj.niveauMax})
-          is distinct from (excluded.nom, excluded.faction, excluded.niveau_min, excluded.niveau_max)`,
-      });
-  }
-}
-
 async function synchroniser(imp: Import, remplacer: boolean, zones: Map<string, number>, categories: Map<string, number>) {
-  const brut = readFileSync(imp.fichier);
-  const contenu = imp.fichier.pathname.endsWith(".gz") ? gunzipSync(brut) : brut;
+  const contenu = lireDonnees(imp.fichier);
   // Version du contenu du fichier, gardée dans donnees.lot de chaque point importé.
   const lot = createHash("sha256").update(contenu).digest("hex").slice(0, 12);
   const importes = sql`${schema.pois.donnees}->>'source' in (${sql.join(imp.sources.map((s) => sql`${s}`), sql`, `)})`;
@@ -166,7 +126,6 @@ async function synchroniser(imp: Import, remplacer: boolean, zones: Map<string, 
   if (perimes > 0) console.log(`${imp.nom} : ${perimes} points d'une version précédente du fichier, synchronisation.`);
 
   const points = (JSON.parse(contenu.toString("utf8")) as { points: PointImporte[] }).points;
-  if (points.some((p) => pnjDuPoint(p) !== null)) await importerFichesClassic(points);
 
   const fichier = new Map<string, Contenu>();
   for (const p of points) {
@@ -206,8 +165,6 @@ async function synchroniser(imp: Import, remplacer: boolean, zones: Map<string, 
       .orderBy(sql`${TOUCHE} desc`, schema.pois.id);
 
     // Chaque point du fichier correspond à au plus un point en base, de préférence un point touché.
-    // Un point confirmé par les relevés (donnees.verifie) appartient à scripts/releves.ts, qui garde
-    // ce que disait le fichier dans donnees.classic.
     const pris = new Set<string>();
     const aJour: LignePoint[] = [];
     const aSupprimer: number[] = [];
@@ -216,8 +173,21 @@ async function synchroniser(imp: Import, remplacer: boolean, zones: Map<string, 
       const c = String(l.donnees.cleImport ?? "");
       const nouveau = pris.has(c) ? undefined : fichier.get(c);
       if (nouveau) pris.add(c);
-      if (touche || l.donnees.verifie) gardes++;
-      else if (nouveau) {
+      if (touche) gardes++;
+      else if (l.donnees.verifie) {
+        // Confirmé par les relevés : nom, description et statut sont ceux de scripts/releves.ts, qui
+        // garde ce que dit le fichier dans donnees.classic pour y revenir si la confirmation tombe.
+        gardes++;
+        if (!nouveau) continue;
+        const voulu = {
+          ...l,
+          ...nouveau,
+          nom: l.nom,
+          description: l.description,
+          donnees: { ...nouveau.donnees, classic: { nom: nouveau.nom, description: nouveau.description }, verifie: l.donnees.verifie },
+        };
+        if (!memeContenu(l, voulu)) aJour.push(voulu);
+      } else if (nouveau) {
         if (!memeContenu(l, nouveau)) aJour.push({ ...nouveau, id: l.id, statut: l.statut });
       } else if (l.statut === imp.statut) aSupprimer.push(l.id);
       else gardes++; // masqué par la modération : on garde la décision
@@ -281,9 +251,11 @@ async function main() {
   const categories = new Map(
     (await db.select({ id: schema.categories.id, slug: schema.categories.slug }).from(schema.categories)).map((c) => [c.slug, c.id]),
   );
+  // Les fiches des PNJ d'abord : les points de Classic et des relevés y renvoient.
+  await importerFichiers();
+  await recalculerFiches();
   for (const imp of IMPORTS) await synchroniser(imp, remplacer, zones, categories);
-
-  await importerReleves();
+  await agreger();
 }
 
 main()

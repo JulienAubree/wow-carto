@@ -1,9 +1,12 @@
 // Relevés en jeu : ce que des joueurs ont vu dans Forever avec un addon (aujourd'hui ForeverBeacon).
 //
 // 1. importerFichiers() importe chaque fichier de data/releves/ (écrit par
-//    scripts/donnees/extraire_releves.py) une seule fois : un envoi, ses PNJ, ses quêtes et ses
-//    observations (une interaction avec un PNJ, à la position du joueur).
-// 2. agreger() recalcule les points des PNJ à partir de toutes les observations des envois acceptés :
+//    scripts/donnees/extraire_releves.py) une seule fois : un envoi, avec les fiches des PNJ et des
+//    quêtes vues, et ses observations (une interaction avec un PNJ, à la position du joueur).
+// 2. recalculerFiches() refait les tables pnj et quetes : les fiches de Classic, remplacées par celles
+//    des envois acceptés, du plus ancien relevé au plus récent. Écarter un envoi retire donc aussi ses
+//    noms et ses titres.
+// 3. agreger() recalcule les points des PNJ à partir de toutes les observations des envois acceptés :
 //    - les positions d'un même PNJ dans une même zone, à moins de RAYON mètres du jeu les unes des
 //      autres, forment un groupe ;
 //    - un point de Classic « à vérifier » de ce PNJ à moins de RAYON mètres du groupe est confirmé : il
@@ -11,7 +14,7 @@
 //    - sinon, un nouveau point est publié à la position médiane du groupe, s'il dit ce qu'est le PNJ
 //      (formateur, marchand, donneur ou destinataire de quête) ;
 //    - un point confirmé ou ajouté que plus aucune observation ne soutient (envoi écarté) revient à
-//      « à vérifier » ou disparaît.
+//      « à vérifier », caché ; il garde son identifiant si un relevé le confirme à nouveau.
 //    Un groupe ne compte que s'il vient d'un envoi fiable (fichier du dépôt ou membre confirmé) ou
 //    d'au moins deux membres différents. Les points modifiés ou référencés par la communauté ne sont
 //    jamais touchés, et un point masqué par la modération le reste.
@@ -20,7 +23,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../src/db";
-import { canonique, mettreAJourPoints, TOUCHE, type LignePoint } from "./donnees/outils";
+import { canonique, FICHIER_CLASSIC, lireDonnees, mettreAJourPoints, TOUCHE, type LignePoint } from "./donnees/outils";
 
 const DOSSIER = new URL("../data/releves/", import.meta.url);
 const CARTES = new URL("../data/forever/cartes.json", import.meta.url);
@@ -37,12 +40,14 @@ const CATEGORIE_DU_ROLE: [string, string][] = [
 ];
 const MAX_QUETES_DECRITES = 12;
 
+type FichePnj = { id: number; nom: string; titre?: string; niveaux?: [number, number]; faction?: string; classification?: string; type?: string };
+type FicheQuete = { id: number; titre: string; niveau?: number; debut?: number; fin?: number; objectifs?: string[] };
 type FichierReleves = {
   source: string;
   build: string | null;
   beta: boolean;
-  pnj: { id: number; nom: string; titre?: string; niveaux?: [number, number]; faction?: string; classification?: string; type?: string }[];
-  quetes: { id: number; titre: string; niveau?: number; debut?: number; fin?: number; objectifs?: string[] }[];
+  pnj: FichePnj[];
+  quetes: FicheQuete[];
   observations: { type: string; role: string; pnj: number; quete?: number; zone: string; x: number; y: number; t?: number }[];
 };
 
@@ -61,6 +66,8 @@ export async function importerFichiers() {
     if (deja) continue;
     const doc = JSON.parse(contenu.toString("utf8")) as FichierReleves;
     const observations = doc.observations.filter((o) => zones.has(o.zone));
+    const heures = doc.observations.map((o) => o.t ?? 0).filter((t) => t > 0);
+    const dernier = heures.length ? new Date(Math.max(...heures) * 1000).toISOString() : null;
 
     await db.transaction(async (tx) => {
       const [envoi] = await tx
@@ -69,71 +76,10 @@ export async function importerFichiers() {
           empreinte,
           source: doc.source,
           build: doc.build,
-          resume: { fichier: nomFichier, beta: doc.beta, pnj: doc.pnj.length, quetes: doc.quetes.length, observations: observations.length },
+          resume: { fichier: nomFichier, beta: doc.beta, dernier, pnj: doc.pnj.length, quetes: doc.quetes.length, observations: observations.length },
+          fiches: { pnj: doc.pnj, quetes: doc.quetes },
         })
         .returning({ id: schema.envois.id });
-
-      // Ce qui est vu dans Forever remplace ce qui venait de Classic ; entre deux relevés, les niveaux
-      // s'additionnent et le dernier nom l'emporte.
-      const deClassic = sql`pnj.source = 'classic'`;
-      for (let i = 0; i < doc.pnj.length; i += 1000) {
-        await tx
-          .insert(schema.pnj)
-          .values(
-            doc.pnj.slice(i, i + 1000).map((p) => ({
-              id: p.id,
-              nom: p.nom,
-              titre: p.titre ?? null,
-              faction: p.faction ?? null,
-              niveauMin: p.niveaux?.[0] ?? null,
-              niveauMax: p.niveaux?.[1] ?? null,
-              classification: p.classification ?? null,
-              source: "releves",
-              donnees: p.type ? { type: p.type } : {},
-            })),
-          )
-          .onConflictDoUpdate({
-            target: schema.pnj.id,
-            set: {
-              nom: sql`excluded.nom`,
-              titre: sql`case when ${deClassic} then excluded.titre else coalesce(excluded.titre, pnj.titre) end`,
-              faction: sql`coalesce(excluded.faction, case when ${deClassic} then null else pnj.faction end, pnj.faction)`,
-              niveauMin: sql`case when ${deClassic} or pnj.niveau_min is null then excluded.niveau_min
-                else least(pnj.niveau_min, coalesce(excluded.niveau_min, pnj.niveau_min)) end`,
-              niveauMax: sql`case when ${deClassic} or pnj.niveau_max is null then excluded.niveau_max
-                else greatest(pnj.niveau_max, coalesce(excluded.niveau_max, pnj.niveau_max)) end`,
-              classification: sql`coalesce(excluded.classification, pnj.classification)`,
-              source: sql`excluded.source`,
-              donnees: sql`pnj.donnees || excluded.donnees`,
-              updatedAt: sql`now()`,
-            },
-          });
-      }
-      for (let i = 0; i < doc.quetes.length; i += 1000) {
-        await tx
-          .insert(schema.quetes)
-          .values(
-            doc.quetes.slice(i, i + 1000).map((q) => ({
-              id: q.id,
-              titre: q.titre,
-              niveau: q.niveau ?? null,
-              pnjDebut: q.debut ?? null,
-              pnjFin: q.fin ?? null,
-              donnees: q.objectifs ? { objectifs: q.objectifs } : {},
-            })),
-          )
-          .onConflictDoUpdate({
-            target: schema.quetes.id,
-            set: {
-              titre: sql`excluded.titre`,
-              niveau: sql`coalesce(excluded.niveau, quetes.niveau)`,
-              pnjDebut: sql`coalesce(excluded.pnj_debut, quetes.pnj_debut)`,
-              pnjFin: sql`coalesce(excluded.pnj_fin, quetes.pnj_fin)`,
-              donnees: sql`quetes.donnees || excluded.donnees`,
-              updatedAt: sql`now()`,
-            },
-          });
-      }
       for (let i = 0; i < observations.length; i += 1000) {
         await tx
           .insert(schema.observations)
@@ -159,6 +105,118 @@ export async function importerFichiers() {
         (observations.length < doc.observations.length ? ` (${doc.observations.length - observations.length} hors des zones du site)` : "") +
         ".",
     );
+  }
+}
+
+type LignePnj = typeof schema.pnj.$inferSelect;
+type LigneQuete = typeof schema.quetes.$inferSelect;
+type FichePnjVoulue = Omit<LignePnj, "createdAt" | "updatedAt">;
+type FicheQueteVoulue = Omit<LigneQuete, "createdAt" | "updatedAt">;
+
+export async function recalculerFiches() {
+  const pnj = new Map<number, FichePnjVoulue>();
+  const classic = (JSON.parse(lireDonnees(FICHIER_CLASSIC).toString("utf8")) as { points: { nom: string; donnees: Record<string, unknown> }[] }).points;
+  for (const p of classic) {
+    const id = p.donnees.pnjId;
+    if (typeof id !== "number" || pnj.has(id)) continue;
+    const niveaux = p.donnees.niveaux as [number, number] | undefined;
+    pnj.set(id, {
+      id,
+      nom: p.nom,
+      titre: null,
+      faction: typeof p.donnees.faction === "string" ? p.donnees.faction : null,
+      niveauMin: niveaux?.[0] ?? null,
+      niveauMax: niveaux?.[1] ?? null,
+      classification: null,
+      source: "classic",
+      donnees: {},
+    });
+  }
+
+  // Du plus ancien relevé au plus récent : le dernier nom vu l'emporte, les niveaux s'additionnent.
+  const envois = await db
+    .select({ fiches: schema.envois.fiches })
+    .from(schema.envois)
+    .where(eq(schema.envois.statut, "accepte"))
+    .orderBy(sql`${schema.envois.resume}->>'dernier' nulls first`, schema.envois.id);
+  const quetes = new Map<number, FicheQueteVoulue>();
+  for (const { fiches } of envois) {
+    for (const f of (fiches.pnj ?? []) as FichePnj[]) {
+      const avant = pnj.get(f.id);
+      const releve = avant?.source === "releves" ? avant : undefined;
+      pnj.set(f.id, {
+        id: f.id,
+        nom: f.nom,
+        titre: f.titre ?? releve?.titre ?? null,
+        faction: f.faction ?? avant?.faction ?? null,
+        niveauMin: f.niveaux ? Math.min(f.niveaux[0], releve?.niveauMin ?? Infinity) : (avant?.niveauMin ?? null),
+        niveauMax: f.niveaux ? Math.max(f.niveaux[1], releve?.niveauMax ?? -Infinity) : (avant?.niveauMax ?? null),
+        classification: f.classification ?? releve?.classification ?? null,
+        source: "releves",
+        donnees: { ...releve?.donnees, ...(f.type ? { type: f.type } : {}) },
+      });
+    }
+    for (const q of (fiches.quetes ?? []) as FicheQuete[]) {
+      const avant = quetes.get(q.id);
+      quetes.set(q.id, {
+        id: q.id,
+        titre: q.titre,
+        niveau: q.niveau ?? avant?.niveau ?? null,
+        pnjDebut: q.debut ?? avant?.pnjDebut ?? null,
+        pnjFin: q.fin ?? avant?.pnjFin ?? null,
+        donnees: q.objectifs?.length ? { objectifs: q.objectifs } : (avant?.donnees ?? {}),
+      });
+    }
+  }
+
+  // Seules les fiches qui changent sont écrites. Une fiche que plus rien ne soutient reste (des points
+  // peuvent la référencer), mais aucun point publié ne s'en sert.
+  const sansDates = (ligne: { createdAt?: Date; updatedAt?: Date }) => canonique({ ...ligne, createdAt: undefined, updatedAt: undefined });
+  const pnjActuels = new Map((await db.select().from(schema.pnj)).map((p) => [p.id, sansDates(p)]));
+  const pnjAJour = [...pnj.values()].filter((p) => pnjActuels.get(p.id) !== canonique(p));
+  for (let i = 0; i < pnjAJour.length; i += 1000) {
+    await db
+      .insert(schema.pnj)
+      .values(pnjAJour.slice(i, i + 1000))
+      .onConflictDoUpdate({
+        target: schema.pnj.id,
+        set: {
+          nom: sql`excluded.nom`,
+          titre: sql`excluded.titre`,
+          faction: sql`excluded.faction`,
+          niveauMin: sql`excluded.niveau_min`,
+          niveauMax: sql`excluded.niveau_max`,
+          classification: sql`excluded.classification`,
+          source: sql`excluded.source`,
+          donnees: sql`excluded.donnees`,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
+  const quetesActuelles = new Map((await db.select().from(schema.quetes)).map((q) => [q.id, sansDates(q)]));
+  const quetesAJour = [...quetes.values()].filter((q) => quetesActuelles.get(q.id) !== canonique(q));
+  for (let i = 0; i < quetesAJour.length; i += 1000) {
+    await db
+      .insert(schema.quetes)
+      .values(quetesAJour.slice(i, i + 1000))
+      .onConflictDoUpdate({
+        target: schema.quetes.id,
+        set: {
+          titre: sql`excluded.titre`,
+          niveau: sql`excluded.niveau`,
+          pnjDebut: sql`excluded.pnj_debut`,
+          pnjFin: sql`excluded.pnj_fin`,
+          donnees: sql`excluded.donnees`,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
+  const quetesRetirees = [...quetesActuelles.keys()].filter((id) => !quetes.has(id));
+  for (let i = 0; i < quetesRetirees.length; i += 1000) {
+    await db.delete(schema.quetes).where(inArray(schema.quetes.id, quetesRetirees.slice(i, i + 1000)));
+  }
+  if (pnjAJour.length || quetesAJour.length || quetesRetirees.length) {
+    console.log(`Fiches : ${pnjAJour.length} PNJ et ${quetesAJour.length} quêtes à jour, ${quetesRetirees.length} quêtes retirées.`);
   }
 }
 
@@ -340,7 +398,6 @@ export async function agreger() {
             description: description(g, classic.description),
             donnees: { ...actuel.donnees, classic, verifie: resume(g) },
           };
-          if (actuel.statut === "a_verifier") confirmes++;
         } else {
           const categorie = CATEGORIE_DU_ROLE.find(([role]) => g.observations.some((o) => o.role === role))?.[1];
           voulu = {
@@ -354,6 +411,7 @@ export async function agreger() {
             donnees: { ...actuel.donnees, faction: pnj.get(g.pnjId)?.faction ?? undefined, releves: resume(g) },
           };
         }
+        if (actuel.statut === "a_verifier") confirmes++;
         if (canonique(voulu) !== canonique(actuel)) aJour.push(voulu);
         continue;
       }
@@ -379,39 +437,32 @@ export async function agreger() {
       });
     }
 
-    // Points que plus aucun groupe ne soutient.
-    const aSupprimer: number[] = [];
+    // Points que plus aucun groupe ne soutient : cachés (« à vérifier »), pas supprimés, pour garder leur
+    // identifiant (les liens ?poi=) s'ils sont confirmés à nouveau. Un point masqué le reste.
     let retires = 0;
     for (const { touche, ...p } of existants) {
       if (apparies.has(p.id) || touche) continue;
-      if (p.donnees.source === "releves") aSupprimer.push(p.id);
-      else if (p.donnees.verifie) {
+      const statut = p.statut === "masque" ? "masque" : "a_verifier";
+      if (p.donnees.source === "releves") {
+        if (p.statut !== "publie") continue;
+        retires++;
+        aJour.push({ ...p, statut });
+      } else if (p.donnees.verifie) {
+        // Point de Classic : il reprend ce que disait Classic.
         const donnees = { ...p.donnees };
         const classic = donnees.classic as DonneesClassic | undefined;
         delete donnees.classic;
         delete donnees.verifie;
         retires++;
-        aJour.push({
-          ...p,
-          statut: p.statut === "masque" ? "masque" : "a_verifier",
-          nom: classic?.nom ?? p.nom,
-          description: classic ? classic.description : p.description,
-          donnees,
-        });
+        aJour.push({ ...p, statut, nom: classic?.nom ?? p.nom, description: classic ? classic.description : p.description, donnees });
       }
     }
 
     await mettreAJourPoints(tx, aJour);
     for (let i = 0; i < aAjouter.length; i += 1000) await tx.insert(schema.pois).values(aAjouter.slice(i, i + 1000));
-    for (let i = 0; i < aSupprimer.length; i += 1000) await tx.delete(schema.pois).where(inArray(schema.pois.id, aSupprimer.slice(i, i + 1000)));
     console.log(
-      `Relevés : ${vues.size} observations, ${groupes.length} PNJ placés ; ${confirmes} points de Classic confirmés, ` +
-        `${ajoutes} points ajoutés, ${aJour.length} mis à jour, ${aSupprimer.length} supprimés, ${retires} remis à vérifier.`,
+      `Relevés : ${vues.size} observations, ${groupes.length} PNJ placés ; ${confirmes} points confirmés, ` +
+        `${ajoutes} points ajoutés, ${aJour.length} mis à jour, ${retires} remis à vérifier.`,
     );
   });
-}
-
-export async function importerReleves() {
-  await importerFichiers();
-  await agreger();
 }

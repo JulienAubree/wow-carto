@@ -1,5 +1,15 @@
 // Outils partagés par les imports (scripts/importer-classic.ts, scripts/releves.ts).
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { sql } from "drizzle-orm";
+
+// Contenu d'un fichier de données, décompressé s'il finit par .gz.
+export function lireDonnees(fichier: URL) {
+  const brut = readFileSync(fichier);
+  return fichier.pathname.endsWith(".gz") ? gunzipSync(brut) : brut;
+}
+
+export const FICHIER_CLASSIC = new URL("../../data/classic/pnj.json.gz", import.meta.url);
 
 // Comparaison de deux valeurs JSON indépendante de l'ordre des clés (jsonb les réordonne).
 export function canonique(v: unknown): string {

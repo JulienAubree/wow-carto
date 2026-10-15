@@ -139,8 +139,11 @@ export const envois = pgTable("envois", {
   // null : fichier versionné dans le dépôt (data/releves/), considéré comme fiable.
   auteurId: integer("auteur_id").references(() => users.id),
   statut: envoiStatutEnum("statut").notNull().default("accepte"),
-  // Nombre d'observations par type, pour la modération.
+  // Résumé pour la modération : fichier, bêta, nombres, date du dernier relevé.
   resume: jsonb("resume").$type<Record<string, unknown>>().notNull().default({}),
+  // Fiches des PNJ et des quêtes vues dans cet envoi ; les tables pnj et quetes sont recalculées à
+  // partir des envois acceptés.
+  fiches: jsonb("fiches").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

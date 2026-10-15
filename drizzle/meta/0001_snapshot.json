@@ -1,5 +1,5 @@
 {
-  "id": "b4dda0aa-ff40-4f96-bffe-335481ffacaa",
+  "id": "9b5b98a0-5027-4d19-9094-20e164fc3010",
   "prevId": "7688d9a3-b7a7-4215-be6e-6860671c5890",
   "version": "7",
   "dialect": "postgresql",
@@ -427,6 +427,13 @@
         },
         "resume": {
           "name": "resume",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "fiches": {
+          "name": "fiches",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
