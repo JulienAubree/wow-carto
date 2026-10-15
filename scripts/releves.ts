@@ -17,8 +17,9 @@
 //      « à vérifier », caché ; il garde son identifiant si un relevé le confirme à nouveau.
 //    Un groupe ne compte que s'il vient d'un envoi fiable (fichier du dépôt ou membre confirmé) ou
 //    d'au moins deux membres différents ; les noms et les titres, que d'envois fiables. Les points
-//    modifiés ou référencés par la communauté ne sont jamais touchés, un point masqué par la modération
-//    le reste, et les zones sans carte (renommées ou retirées) sont laissées telles quelles.
+//    modifiés ou référencés par la communauté et ceux masqués par la modération ne sont jamais
+//    changés, et les zones sans carte (renommées ou retirées) sont laissées telles quelles.
+// 4. purgerFiches() supprime les fiches vidées que plus aucun point ne référence.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
@@ -208,7 +209,8 @@ export async function recalculerFiches() {
         },
       });
   }
-  // Fiches que plus rien ne soutient (envoi écarté) : supprimées, ou vidées si un point y renvoie encore.
+  // Fiches que plus rien ne soutient (envoi écarté, PNJ retiré de Classic) : supprimées, ou vidées si un
+  // point y renvoie encore (purgerFiches() les supprime quand ce n'est plus le cas).
   const orphelins = [...pnjActuels.keys()].filter((id) => !pnj.has(id));
   let pnjRetires = 0;
   for (let i = 0; i < orphelins.length; i += 1000) {
@@ -251,6 +253,16 @@ export async function recalculerFiches() {
       `Fiches : ${pnjAJour.length} PNJ et ${quetesAJour.length} quêtes à jour, ${pnjRetires} PNJ et ${quetesRetirees.length} quêtes retirés.`,
     );
   }
+}
+
+// Fiches vidées par recalculerFiches() que plus aucun point ne référence, une fois les points de Classic
+// et des relevés à jour : le même déploiement les supprime.
+export async function purgerFiches() {
+  const supprimes = await db
+    .delete(schema.pnj)
+    .where(sql`${schema.pnj.source} = 'retire' and not exists (select 1 from pois where pois.pnj_id = pnj.id)`)
+    .returning({ id: schema.pnj.id });
+  if (supprimes.length) console.log(`Fiches : ${supprimes.length} PNJ sans point supprimés.`);
 }
 
 // Nom et description d'un point de Classic avant sa confirmation, gardés dans donnees.classic.
@@ -390,14 +402,15 @@ export async function agreger() {
     liste.forEach(placer);
     for (let fusion = true; fusion; ) {
       fusion = false;
-      for (let i = 0; i < liste.length && !fusion; i++) {
-        for (let j = i + 1; j < liste.length && !fusion; j++) {
-          if (distance(liste[i].zoneId, liste[i], liste[j]) <= RAYON) {
-            liste[i].observations.push(...liste[j].observations);
-            liste.splice(j, 1);
-            placer(liste[i]);
-            fusion = true;
-          }
+      for (let i = 0; i < liste.length; i++) {
+        for (let j = i + 1; j < liste.length; j++) {
+          if (distance(liste[i].zoneId, liste[i], liste[j]) > RAYON) continue;
+          for (const o of liste[j].observations) liste[i].observations.push(o);
+          liste.splice(j, 1);
+          placer(liste[i]);
+          fusion = true;
+          // La médiane a bougé : les groupes déjà passés peuvent maintenant être assez près.
+          j = i;
         }
       }
     }
@@ -474,21 +487,25 @@ export async function agreger() {
       parPnjEtZoneExistants.get(cle)!.push(p);
     }
 
-    // Chaque groupe reprend au plus un point existant et chaque point au plus un groupe, les paires les
-    // plus proches d'abord, quel que soit l'ordre des groupes. Un point masqué ou modifié par la
-    // communauté passe avant les autres : il absorbe le groupe sans être changé. Un point des relevés,
-    // placé à la médiane d'observations, est repris par un groupe qui a une observation à moins de
-    // RAYON de lui, si ce groupe aurait pu le créer.
+    // Chaque groupe reprend au plus un point existant et chaque point au plus un groupe, quel que soit
+    // l'ordre des groupes :
+    // - un point masqué ou modifié par la communauté passe d'abord : il absorbe le groupe sans être changé ;
+    // - puis les points de Classic, avant ceux des relevés : un point de Classic confirmé à nouveau
+    //   reprend sa place (et son identifiant) devant un point des relevés créé entre-temps ;
+    // - à rang égal, les paires les plus proches d'abord.
+    // Un point des relevés, placé à la médiane d'observations, est repris par un groupe qui a une
+    // observation à moins de RAYON de lui, si ce groupe aurait pu le créer (catégorie et nom de Forever).
     const paires: { groupe: number; point: Existant; rang: number; d: number }[] = [];
     groupes.forEach((g, i) => {
       const categorie = categorieDuGroupe(g);
       for (const p of parPnjEtZoneExistants.get(`${g.pnjId}|${g.zoneId}`) ?? []) {
         let d = distance(g.zoneId, p, g);
         if (p.donnees.source === "releves") {
-          if (!categorie) continue;
+          if (!categorie || !categories.get(categorie) || pnj.get(g.pnjId)?.source !== "releves") continue;
           for (const o of g.observations) d = Math.min(d, distance(g.zoneId, p, o));
         }
-        if (d <= RAYON) paires.push({ groupe: i, point: p, rang: p.touche || p.statut === "masque" ? 0 : 1, d });
+        const rang = p.touche || p.statut === "masque" ? 0 : p.donnees.source === "classic" ? 1 : 2;
+        if (d <= RAYON) paires.push({ groupe: i, point: p, rang, d });
       }
     });
     paires.sort((a, b) => a.rang - b.rang || a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
@@ -509,15 +526,14 @@ export async function agreger() {
       const candidat = choix.get(i);
       if (candidat) {
         const { touche, ...actuel } = candidat;
-        if (touche) return;
-        const statut = actuel.statut === "masque" ? "masque" : "publie";
+        if (touche || actuel.statut === "masque") return;
         let voulu: LignePoint;
         if (actuel.donnees.source === "classic") {
           // Ce que disait Classic, pour revenir en arrière si la confirmation tombe.
           const classic = (actuel.donnees.classic as DonneesClassic | undefined) ?? { nom: actuel.nom, description: actuel.description };
           voulu = {
             ...actuel,
-            statut,
+            statut: "publie",
             nom: nomForever ?? classic.nom,
             description: description(g, classic.description),
             donnees: { ...actuel.donnees, classic, verifie: resume(g) },
@@ -525,7 +541,7 @@ export async function agreger() {
         } else {
           voulu = {
             ...actuel,
-            statut,
+            statut: "publie",
             categorieId: (categorie && categories.get(categorie)) || actuel.categorieId,
             nom: nomForever ?? actuel.nom,
             description: description(g, null),
@@ -564,15 +580,14 @@ export async function agreger() {
     });
 
     // Points que plus aucun groupe ne soutient : cachés (« à vérifier »), pas supprimés, pour garder leur
-    // identifiant (les liens ?poi=) s'ils sont confirmés à nouveau. Un point masqué le reste.
+    // identifiant (les liens ?poi=) s'ils sont confirmés à nouveau. Un point masqué n'est pas changé.
     let retires = 0;
     for (const { touche, ...p } of existants) {
-      if (apparies.has(p.id) || touche) continue;
-      const statut = p.statut === "masque" ? "masque" : "a_verifier";
+      if (apparies.has(p.id) || touche || p.statut === "masque") continue;
       if (p.donnees.source === "releves") {
         if (p.statut !== "publie") continue;
         retires++;
-        aJour.push({ ...p, statut });
+        aJour.push({ ...p, statut: "a_verifier" });
       } else if (p.donnees.verifie) {
         // Point de Classic : il reprend ce que disait Classic.
         const donnees = { ...p.donnees };
@@ -580,7 +595,7 @@ export async function agreger() {
         delete donnees.classic;
         delete donnees.verifie;
         retires++;
-        aJour.push({ ...p, statut, nom: classic?.nom ?? p.nom, description: classic ? classic.description : p.description, donnees });
+        aJour.push({ ...p, statut: "a_verifier", nom: classic?.nom ?? p.nom, description: classic ? classic.description : p.description, donnees });
       }
     }
 

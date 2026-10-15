@@ -16,6 +16,6 @@ Les fichiers de ce dossier sont considérés comme fiables. Ils ne contiennent n
 3. Lancer `python3 -I scripts/donnees/extraire_releves.py <copie de ForeverBeacon.lua>` : le script écrit ici `foreverbeacon-<empreinte>.json.gz` et dit ce qu'il a gardé. Les relevés faits avant le lancement du 4 novembre 2026 sont marqués « bêta ».
 4. Versionner ce fichier et déployer.
 
-Le fichier de ForeverBeacon s'accumule d'une séance à l'autre (jusqu'à `/fb wipe`) : chaque copie reprend les séances précédentes, et une interaction déjà importée n'est comptée qu'une fois. Un fichier déjà importé (même contenu) est ignoré. Seuls les clients en français (frFR) sont acceptés.
+Le fichier de ForeverBeacon s'accumule d'une séance à l'autre (jusqu'à `/fb wipe`) : chaque copie reprend les séances précédentes, et une interaction déjà importée n'est comptée qu'une fois. Un fichier déjà importé (même contenu) est ignoré. Seuls les clients de Forever (version 1.60 et après) en français (frFR) sont acceptés.
 
 Retirer un fichier du dossier ne retire pas ce qu'il a apporté : pour cela, passer son envoi à `ecarte` dans la table `envois`, puis relancer l'import. Ses points redeviennent « à vérifier » (cachés) et ses noms de PNJ et de quêtes sont retirés.

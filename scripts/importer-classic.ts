@@ -17,7 +17,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../src/db";
 import { canonique, FICHIER_CLASSIC, lireDonnees, mettreAJourPoints, TOUCHE, type LignePoint } from "./donnees/outils";
 import { CATEGORIES, CONTINENTS, ZONES } from "./donnees/zones";
-import { agreger, importerFichiers, recalculerFiches } from "./releves";
+import { agreger, importerFichiers, purgerFiches, recalculerFiches } from "./releves";
 
 type PointImporte = {
   zone: string;
@@ -256,6 +256,7 @@ async function main() {
   await recalculerFiches();
   for (const imp of IMPORTS) await synchroniser(imp, remplacer, zones, categories);
   await agreger();
+  await purgerFiches();
 }
 
 main()
