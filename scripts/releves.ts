@@ -487,34 +487,60 @@ export async function agreger() {
       parPnjEtZoneExistants.get(cle)!.push(p);
     }
 
-    // Chaque groupe reprend au plus un point existant et chaque point au plus un groupe, quel que soit
-    // l'ordre des groupes :
-    // - un point masqué ou modifié par la communauté passe d'abord : il absorbe le groupe sans être changé ;
-    // - puis les points de Classic, avant ceux des relevés : un point de Classic confirmé à nouveau
-    //   reprend sa place (et son identifiant) devant un point des relevés créé entre-temps ;
-    // - à rang égal, les paires les plus proches d'abord.
-    // Un point des relevés, placé à la médiane d'observations, est repris par un groupe qui a une
-    // observation à moins de RAYON de lui, si ce groupe aurait pu le créer (catégorie et nom de Forever).
+    // Points d'un groupe : ceux du PNJ à moins de RAYON de sa médiane. Un point des relevés, placé à la
+    // médiane d'observations, l'est aussi à moins de RAYON d'une de ses observations, si le groupe aurait
+    // pu le créer (catégorie et nom de Forever).
+    // - Un point masqué ou modifié par la communauté absorbe tous ces groupes sans être changé : c'est ce
+    //   PNJ qu'on a choisi de cacher ou de décrire autrement.
+    // - Sinon, chaque groupe reprend au plus un point et chaque point au plus un groupe, quel que soit
+    //   l'ordre des groupes : le plus de groupes possible gardent un point existant (et son identifiant),
+    //   puis les points de Classic passent avant ceux des relevés (un point de Classic confirmé à nouveau
+    //   reprend sa place devant un point des relevés créé entre-temps), puis les plus proches.
     const paires: { groupe: number; point: Existant; rang: number; d: number }[] = [];
     groupes.forEach((g, i) => {
       const categorie = categorieDuGroupe(g);
       for (const p of parPnjEtZoneExistants.get(`${g.pnjId}|${g.zoneId}`) ?? []) {
+        const fige = p.touche || p.statut === "masque";
         let d = distance(g.zoneId, p, g);
         if (p.donnees.source === "releves") {
-          if (!categorie || !categories.get(categorie) || pnj.get(g.pnjId)?.source !== "releves") continue;
+          if (!fige && (!categorie || !categories.get(categorie) || pnj.get(g.pnjId)?.source !== "releves")) continue;
           for (const o of g.observations) d = Math.min(d, distance(g.zoneId, p, o));
         }
-        const rang = p.touche || p.statut === "masque" ? 0 : p.donnees.source === "classic" ? 1 : 2;
+        const rang = fige ? 0 : p.donnees.source === "classic" ? 1 : 2;
         if (d <= RAYON) paires.push({ groupe: i, point: p, rang, d });
       }
     });
     paires.sort((a, b) => a.rang - b.rang || a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
-    const choix = new Map<number, Existant>();
-    for (const { groupe, point } of paires) {
-      if (choix.has(groupe) || apparies.has(point.id)) continue;
-      choix.set(groupe, point);
-      apparies.add(point.id);
+    const absorbes = new Set<number>();
+    const candidats = new Map<number, Existant[]>();
+    for (const { groupe, point, rang } of paires) {
+      if (rang === 0) absorbes.add(groupe);
+      else if (!absorbes.has(groupe)) candidats.set(groupe, [...(candidats.get(groupe) ?? []), point]);
     }
+    const choix = new Map<number, Existant>();
+    const titulaires = new Map<number, number>();
+    for (const { groupe, point } of paires) {
+      if (!candidats.has(groupe) || choix.has(groupe) || titulaires.has(point.id) || apparies.has(point.id)) continue;
+      choix.set(groupe, point);
+      titulaires.set(point.id, groupe);
+    }
+    // Un groupe resté sans point prend celui d'un groupe qui peut se rabattre sur un autre de ses points,
+    // de proche en proche (chemin augmentant).
+    const reprendre = (groupe: number, vus: Set<number>): boolean => {
+      for (const p of candidats.get(groupe)!) {
+        if (vus.has(p.id)) continue;
+        vus.add(p.id);
+        const titulaire = titulaires.get(p.id);
+        if (titulaire === undefined || reprendre(titulaire, vus)) {
+          choix.set(groupe, p);
+          titulaires.set(p.id, groupe);
+          return true;
+        }
+      }
+      return false;
+    };
+    for (const groupe of candidats.keys()) if (!choix.has(groupe)) reprendre(groupe, new Set());
+    for (const id of titulaires.keys()) apparies.add(id);
 
     const aJour: LignePoint[] = [];
     const aAjouter: (typeof schema.pois.$inferInsert)[] = [];
@@ -523,9 +549,11 @@ export async function agreger() {
     groupes.forEach((g, i) => {
       const nomForever = pnj.get(g.pnjId)?.source === "releves" ? pnj.get(g.pnjId)!.nom : undefined;
       const categorie = categorieDuGroupe(g);
+      if (absorbes.has(i)) return;
       const candidat = choix.get(i);
       if (candidat) {
         const { touche, ...actuel } = candidat;
+        // Par sûreté : un point masqué ou touché absorbe ses groupes plus haut, il n'est jamais candidat.
         if (touche || actuel.statut === "masque") return;
         let voulu: LignePoint;
         if (actuel.donnees.source === "classic") {

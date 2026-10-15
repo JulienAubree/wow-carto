@@ -15,9 +15,10 @@ Ne sont gardés que les éléments utiles à la carte, sans nom de personnage ni
 Les positions sur une carte que le site n'a pas (grotte, instance…) sont ignorées et comptées.
 
 Un objet du jeu (avis de recherche, panneau…) peut avoir le même numéro qu'une créature : une fenêtre
-ou une quête ouverte sur un objet n'est retenue que si l'addon a bien noté une créature à cet endroit
-ou sous ce nom. Seuls les clients de Forever (version 1.60 et après) en français (frFR) sont acceptés :
-les positions viennent de Forever et les noms relevés remplacent ceux du site.
+de dialogue ou une quête ouverte sur un objet n'est attribuée à la créature que si l'addon l'a vue à cet
+endroit, ou si rien d'autre ne l'en distingue (voir main). Seuls les clients de Forever (version 1.60
+et après) en français (frFR) sont acceptés : les positions viennent de Forever et les noms relevés
+remplacent ceux du site.
 
 Usage :
   python3 -I scripts/donnees/extraire_releves.py <ForeverBeacon.lua> [<sortie>] [--beta | --live]
@@ -52,7 +53,7 @@ LIGNE_NIVEAU = re.compile(r"^(Niveau|Level)\b|^\?\?")
 INCONNU = {"Inconnu", "Inconnue", "Unknown"}
 # Fenêtre ouverte -> compteur de l'addon (npcs[id].sources), qui ne compte que les créatures.
 SOURCE_DU_ROLE = {"marchand": "merchant", "formateur": "trainer", "dialogue": "gossip"}
-# Écart maximal (carte de 0 à 1) entre une quête proposée et une créature vue au même endroit.
+# Écart maximal (carte de 0 à 1) entre deux positions notées au même endroit (fenêtre, quête, créature vue).
 ECART_VU = 0.01
 # Avancement du joueur dans un objectif de quête (« Bandit tué : 3/15 », « 0/8 Gerbes ») : retiré.
 AVANCEMENT = re.compile(r"^\s*\d+\s*/\s*\d+\s+|\s*:?\s*\d+\s*/\s*\d+\s*$")
@@ -145,8 +146,23 @@ def catalogue(v):
     return [(str(i), r) for i, r in enumerate(v, 1)] if isinstance(v, list) else []
 
 
+def dico(v):
+    return v if isinstance(v, dict) else {}
+
+
+def liste(v):
+    return v if isinstance(v, list) else []
+
+
+def proches(a, b):
+    """Deux positions de l'addon sur la même carte, à moins de ECART_VU l'une de l'autre."""
+    return (isinstance(a, dict) and isinstance(b, dict) and a.get("map") is not None and a.get("map") == b.get("map")
+            and all(isinstance(p.get(k), (int, float)) for p in (a, b) for k in ("x", "y"))
+            and abs(a["x"] - b["x"]) <= ECART_VU and abs(a["y"] - b["y"]) <= ECART_VU)
+
+
 def niveaux(rec):
-    nombres = [int(k) for k in (rec.get("levels") or {}) if str(k).isdigit()]
+    nombres = [int(k) for k in dico(rec.get("levels")) if str(k).isdigit()]
     return [min(nombres), max(nombres)] if nombres else None
 
 
@@ -216,74 +232,79 @@ def main():
         a_placer.append((role, ident, pos, entier(t), entier(quete)))
 
     def vue_ici(ident, pos):
-        """La créature a été vue (survol, cible, fenêtre) à l'endroit de cet événement."""
-        if not isinstance(pos, dict) or not isinstance(pos.get("x"), (int, float)) or not isinstance(pos.get("y"), (int, float)):
-            return False
-        for v in (creatures.get(ident) or {}).get("sightings") or []:
-            if (isinstance(v, dict) and v.get("map") == pos.get("map") and isinstance(v.get("x"), (int, float))
-                    and isinstance(v.get("y"), (int, float)) and abs(v["x"] - pos["x"]) <= ECART_VU and abs(v["y"] - pos["y"]) <= ECART_VU):
-                return True
-        return False
+        """La créature a été vue (survol, cible, fenêtre) à cet endroit."""
+        return any(proches(v, pos) for v in liste(dico(creatures.get(ident)).get("sightings")))
 
-    # Une fenêtre porte le numéro de ce sur quoi elle s'ouvre, créature ou objet du jeu (avis de recherche,
-    # plaque…), et l'addon ne garde que la dernière par numéro. Elle n'est retenue que si l'addon a compté
-    # une créature de ce numéro dans ce rôle, et l'a vue à cet endroit (il note la créature à chaque
-    # fenêtre) ou, si cette position est sortie de ses 12 dernières, sous ce nom.
+    # Objets du jeu notés comme donneur ou destinataire d'une quête : leur numéro peut être celui d'une
+    # créature (la gaine de Trol'kalar, 2703, et Zengu, 2703).
+    objets = [(qui.get("id"), qui.get("pos")) for rec in quetes_brutes.values() for qui in (rec.get("giver"), rec.get("ender"))
+              if isinstance(qui, dict) and qui.get("kind") == "GameObject"]
+
+    def objet_ici(ident, pos):
+        return any(o == ident and proches(lieu, pos) for o, lieu in objets)
+
+    # Une fenêtre porte le numéro de ce sur quoi elle s'ouvre, et l'addon ne garde que la dernière par
+    # numéro. Elle n'est retenue que si l'addon a compté une créature de ce numéro dans ce rôle. Un objet
+    # du jeu (avis de recherche, plaque…) ouvre aussi des fenêtres de dialogue, jamais de marchand ni de
+    # formateur : une fenêtre de dialogue n'est retenue que si la créature a été vue à cet endroit (l'addon
+    # la note à chaque fenêtre), ou, si cette position est sortie de ses 12 dernières, sous ce nom ou sans
+    # autre nom connu.
     fenetres = []
     for role, domaine in (("marchand", "vendors"), ("formateur", "trainers"), ("dialogue", "gossip")):
         for _, rec in catalogue(doc.get(domaine)):
             if not isinstance(rec, dict):
                 continue
             ident = entier(rec.get("npc"))
-            sources = (creatures.get(ident) or {}).get("sources") or {}
+            sources = dico(dico(creatures.get(ident)).get("sources"))
             if not ident or (entier(sources.get(SOURCE_DU_ROLE[role])) or 0) <= 0:
                 continue
-            if vue_ici(ident, rec.get("pos")) or nom_valide(rec.get("name")) in connus.get(ident, ()):
+            if (role != "dialogue" or vue_ici(ident, rec.get("pos")) or not connus.get(ident)
+                    or nom_valide(rec.get("name")) in connus[ident]):
                 fenetres.append((entier(rec.get("t")) or 0, ident, role, rec))
-    dialogues = {}
+    proposees = {}
     for t, ident, role, rec in sorted(fenetres, key=lambda f: f[:3]):
         nommer(ident, rec.get("name"), t)
         observer(role, ident, rec.get("pos"), t)
         if role == "dialogue":
-            dialogues[ident] = {q.get("id") for q in rec.get("quests") or [] if isinstance(q, dict)}
+            proposees[ident] = {q.get("id") for q in liste(rec.get("quests")) if isinstance(q, dict) and q.get("available")}
 
     # Quête proposée : le numéro de l'événement est celui de la fenêtre, qui peut être un objet. Il est
-    # retenu s'il est le donneur ou le destinataire (créature) noté sur la quête, une créature vue à cet
-    # endroit, une créature dont la fenêtre de dialogue proposait la quête, ou une créature qui donne ou
-    # reçoit une autre quête quand la quête n'a pas été proposée par un objet en dernier (le donneur noté
-    # sur la quête est remplacé à chaque proposition, et par le joueur qui la partage).
-    personnages = set(givers.values())
+    # retenu pour une créature vue à cet endroit ; sinon, pas à l'endroit d'un objet de ce numéro noté sur
+    # une quête, et s'il est le donneur (créature) noté sur la quête, son destinataire quand la quête n'est
+    # pas donnée par un objet, ou une créature dont la fenêtre de dialogue proposait la quête. Le donneur
+    # noté sur la quête est celui de la dernière proposition (ou le joueur qui l'a partagée).
     debuts = {}
     rendues = {}
-    for ev in doc.get("questEvents") or []:
+    for ev in liste(doc.get("questEvents")):
         if not isinstance(ev, dict):
             continue
-        quete, ident, t = entier(ev.get("questID")), entier(ev.get("npc")), entier(ev.get("t")) or 0
+        quete, ident, t, lieu = entier(ev.get("questID")), entier(ev.get("npc")), entier(ev.get("t")) or 0, ev.get("pos")
         if ev.get("kind") == "turnedin" and quete and t:
-            rendues.setdefault(quete, []).append((t, ev.get("pos")))
+            rendues.setdefault(quete, []).append((t, lieu))
         if ev.get("kind") != "offered" or not quete or not ident:
             continue
-        donneur = (quetes_brutes.get(quete) or {}).get("giver")
-        donneur = donneur if isinstance(donneur, dict) else {}
-        if not (ident in (givers.get((quete, "giver")), givers.get((quete, "ender"))) or vue_ici(ident, ev.get("pos"))
-                or quete in dialogues.get(ident, ()) or (ident in personnages and donneur.get("kind") != "GameObject")):
+        donneur = dico(dico(quetes_brutes.get(quete)).get("giver"))
+        if not vue_ici(ident, lieu) and (objet_ici(ident, lieu) or not (
+                ident == givers.get((quete, "giver"))
+                or (ident == givers.get((quete, "ender")) and donneur.get("kind") != "GameObject")
+                or quete in proposees.get(ident, ()))):
             continue
-        observer("quete-debut", ident, ev.get("pos"), t, quete)
+        observer("quete-debut", ident, lieu, t, quete)
         if quete not in debuts or t >= debuts[quete][0]:
             debuts[quete] = (t, ident)
-    # Le donneur noté sur la quête est celui de sa dernière proposition : son nom date de ce moment-là.
-    for quete, (t, ident) in debuts.items():
-        if ident == givers.get((quete, "giver")):
-            nommer(ident, quetes_brutes[quete]["giver"].get("name"), t)
 
     def rendue_le(quete, pos):
         """Heure de la dernière remise de cette quête à cet endroit (l'addon ne la note pas sur le destinataire)."""
-        if not isinstance(pos, dict) or not isinstance(pos.get("x"), (int, float)) or not isinstance(pos.get("y"), (int, float)):
-            return None
-        heures = [t for t, p in rendues.get(quete, []) if isinstance(p, dict) and p.get("map") == pos.get("map")
-                  and isinstance(p.get("x"), (int, float)) and isinstance(p.get("y"), (int, float))
-                  and abs(p["x"] - pos["x"]) <= ECART_VU and abs(p["y"] - pos["y"]) <= ECART_VU]
-        return max(heures) if heures else None
+        return max((t for t, lieu in rendues.get(quete, []) if proches(lieu, pos)), default=None)
+
+    # Le nom noté sur la quête est celui de sa dernière proposition ou de sa dernière remise : il date de
+    # ce moment-là quand l'événement est connu.
+    for (quete, bout), ident in sorted(givers.items()):
+        qui = quetes_brutes[quete][bout]
+        if bout == "giver" and quete in debuts and debuts[quete][1] == ident:
+            nommer(ident, qui.get("name"), debuts[quete][0])
+        elif bout == "ender" and rendue_le(quete, qui.get("pos")):
+            nommer(ident, qui.get("name"), rendue_le(quete, qui.get("pos")))
 
     quetes = []
     for ident, rec in sorted(quetes_brutes.items()):
@@ -300,7 +321,7 @@ def main():
                 observer("quete-" + role, q[role], lieu, rendue_le(ident, lieu) if bout == "ender" else None, ident)
         if "debut" not in q and ident in debuts:
             q["debut"] = debuts[ident][1]
-        objectifs = [texte(AVANCEMENT.sub("", o["text"])) for o in (rec.get("objectives") or [])
+        objectifs = [texte(AVANCEMENT.sub("", o["text"])) for o in liste(rec.get("objectives"))
                      if isinstance(o, dict) and isinstance(o.get("text"), str)]
         if any(objectifs):
             q["objectifs"] = [o for o in objectifs if o]
@@ -314,7 +335,7 @@ def main():
         p = {"id": ident, "nom": noms[ident][1]}
         if niveaux(rec):
             p["niveaux"] = niveaux(rec)
-        if FACTIONS.get(rec.get("faction")):
+        if isinstance(rec.get("faction"), str) and rec["faction"] in FACTIONS:
             p["faction"] = FACTIONS[rec["faction"]]
         if texte(rec.get("classification")):
             p["classification"] = texte(rec["classification"])
