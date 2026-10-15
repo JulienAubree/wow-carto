@@ -248,14 +248,17 @@ def main():
 
     # Objets du jeu notés comme donneur ou destinataire d'une quête, ou survolés (catalogue objects de
     # l'addon) : leur numéro peut être celui d'une créature (la gaine de Trol'kalar, 2703, et Zengu, 2703).
-    objets = [(qui.get("id"), qui.get("pos")) for rec in quetes_brutes.values() for qui in (rec.get("giver"), rec.get("ender"))
-              if isinstance(qui, dict) and qui.get("kind") == "GameObject"]
+    objets = {}
+    for rec in quetes_brutes.values():
+        for qui in (rec.get("giver"), rec.get("ender")):
+            if isinstance(qui, dict) and qui.get("kind") == "GameObject" and entier(qui.get("id")):
+                objets.setdefault(qui["id"], []).append(qui.get("pos"))
     for _, rec in catalogue(doc.get("objects")):
         if isinstance(rec, dict) and entier(rec.get("objectID")):
-            objets += [(rec["objectID"], v) for v in liste(rec.get("sightings"))]
+            objets.setdefault(rec["objectID"], []).extend(liste(rec.get("sightings")))
 
     def objet_ici(ident, pos):
-        return any(o == ident and proches(lieu, pos) for o, lieu in objets)
+        return any(proches(lieu, pos) for lieu in objets.get(ident, ()))
 
     # Une fenêtre porte le numéro de ce sur quoi elle s'ouvre, et l'addon ne garde que la dernière par
     # numéro. Elle n'est retenue que si l'addon a compté une créature de ce numéro dans ce rôle. Un objet

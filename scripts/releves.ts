@@ -19,7 +19,8 @@
 //    Un groupe ne compte que s'il vient d'un envoi fiable (fichier du dépôt ou membre confirmé) ou
 //    d'au moins deux membres différents ; les noms et les titres, que d'envois fiables. Les points
 //    modifiés ou référencés par la communauté et ceux masqués par la modération ne sont jamais
-//    changés, et les zones sans carte (renommées ou retirées) sont laissées telles quelles.
+//    changés, pas plus que le point d'un groupe dont un tel point est plus proche ; les zones sans
+//    carte (renommées ou retirées) sont laissées telles quelles.
 // 4. purgerFiches() supprime les fiches vidées que plus aucun point ne référence.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
@@ -488,55 +489,45 @@ export async function agreger() {
       parPnjEtZoneExistants.get(cle)!.push(p);
     }
 
-    // Points d'un groupe : ceux du PNJ à moins de RAYON de sa médiane. Un point des relevés, placé à la
-    // médiane d'observations, l'est aussi à moins de RAYON d'une de ses observations, si le groupe aurait
-    // pu le créer (catégorie et nom de Forever) ou s'il est masqué ou modifié par la communauté (figé).
-    // Chaque groupe va à son point le plus proche de sa médiane, les paires les plus proches d'abord, quel
-    // que soit l'ordre des groupes ; chaque point va au plus à un groupe. Un point repris par un groupe se
-    // retrouve à sa médiane (point des relevés) ou n'a pas bougé (point de Classic, point figé) : au
-    // déploiement suivant, sans nouveau relevé, chaque groupe reprend le même point.
-    // - Cet appariement ne regarde pas si un point est figé : confirmer ou masquer un point ne change pas
-    //   quel groupe tient quel point.
-    // - Un groupe qui tient un point figé, ou qu'un point figé touche de plus près que le sien (ou qui n'en
-    //   a pas), est absorbé : il ne change rien, ni son point, ni les autres points auxquels il touche (un
-    //   point de Classic voisin n'est pas publié, un point publié n'est pas caché). C'est ce PNJ qu'on a
-    //   choisi de cacher ou de décrire autrement.
+    // Points d'un groupe : ceux du PNJ à moins de RAYON de sa médiane, et les points des relevés à moins
+    // de RAYON d'une de ses observations (un point des relevés est placé à la médiane d'observations).
+    // Un groupe ne reprend un point des relevés que s'il aurait pu le créer (catégorie et nom de Forever).
+    // Chaque groupe reprend son point le plus proche de sa médiane, les paires les plus proches d'abord,
+    // quel que soit l'ordre des groupes ; chaque point va au plus à un groupe. Un point repris se retrouve
+    // à la médiane de son groupe (point des relevés) ou n'a pas bougé (point de Classic, point figé) : au
+    // déploiement suivant, sans nouveau relevé, chaque groupe reprend le même point. Rien de cela ne
+    // regarde si un point est figé (masqué ou modifié par la communauté) : confirmer ou masquer un point
+    // ne change pas quel groupe tient quel point.
+    // Un groupe qui tient un point figé, qu'un point figé de ce PNJ touche de plus près que le sien, ou qui
+    // n'en tient aucun alors qu'un point figé le touche, est absorbé : c'est ce PNJ qu'on a choisi de
+    // cacher ou de décrire autrement. Il ne change rien, et le point qu'il tient n'est ni modifié ni caché.
     const paires: { groupe: number; point: Existant; fige: boolean; d: number }[] = [];
+    const figeLePlusProche = new Map<number, number>();
     groupes.forEach((g, i) => {
       const categorie = categorieDuGroupe(g);
+      const pourraitCreer = !!categorie && !!categories.get(categorie) && pnj.get(g.pnjId)?.source === "releves";
       for (const p of parPnjEtZoneExistants.get(`${g.pnjId}|${g.zoneId}`) ?? []) {
         const fige = p.touche || p.statut === "masque";
+        const releves = p.donnees.source === "releves";
+        if (releves && !pourraitCreer && !fige) continue;
         const d = distance(g.zoneId, p, g);
-        let proche = d <= RAYON;
-        if (p.donnees.source === "releves") {
-          if (!fige && (!categorie || !categories.get(categorie) || pnj.get(g.pnjId)?.source !== "releves")) continue;
-          proche ||= g.observations.some((o) => distance(g.zoneId, p, o) <= RAYON);
-        }
-        if (proche) paires.push({ groupe: i, point: p, fige, d });
+        if (d > RAYON && !(releves && g.observations.some((o) => distance(g.zoneId, p, o) <= RAYON))) continue;
+        if (fige && d < (figeLePlusProche.get(i) ?? Infinity)) figeLePlusProche.set(i, d);
+        if (!releves || pourraitCreer) paires.push({ groupe: i, point: p, fige, d });
       }
     });
     paires.sort((a, b) => a.d - b.d || a.point.id - b.point.id || a.groupe - b.groupe);
     const tenus = new Map<number, { point: Existant; fige: boolean; d: number }>();
-    const figeLePlusProche = new Map<number, number>();
-    const pris = new Set<number>();
     for (const { groupe, point, fige, d } of paires) {
-      if (fige && !figeLePlusProche.has(groupe)) figeLePlusProche.set(groupe, d);
-      if (tenus.has(groupe) || pris.has(point.id)) continue;
+      if (tenus.has(groupe) || apparies.has(point.id)) continue;
       tenus.set(groupe, { point, fige, d });
-      pris.add(point.id);
+      apparies.add(point.id);
     }
     const absorbes = new Set<number>();
     for (const [groupe, d] of figeLePlusProche) {
       const tenu = tenus.get(groupe);
       if (!tenu || tenu.fige || d < tenu.d) absorbes.add(groupe);
     }
-    const choix = new Map<number, Existant>();
-    for (const [groupe, { point }] of tenus) {
-      if (absorbes.has(groupe)) continue;
-      choix.set(groupe, point);
-      apparies.add(point.id);
-    }
-    for (const { groupe, point } of paires) if (absorbes.has(groupe)) apparies.add(point.id);
 
     const aJour: LignePoint[] = [];
     const aAjouter: (typeof schema.pois.$inferInsert)[] = [];
@@ -546,7 +537,7 @@ export async function agreger() {
       const nomForever = pnj.get(g.pnjId)?.source === "releves" ? pnj.get(g.pnjId)!.nom : undefined;
       const categorie = categorieDuGroupe(g);
       if (absorbes.has(i)) return;
-      const candidat = choix.get(i);
+      const candidat = tenus.get(i)?.point;
       if (candidat) {
         const { touche, ...actuel } = candidat;
         // Par sûreté : un point figé n'est jamais choisi plus haut.

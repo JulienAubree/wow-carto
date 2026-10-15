@@ -13,8 +13,8 @@ import {
 
 // Rôles : un membre « confirmé » publie sans passer par la modération.
 export const roleEnum = pgEnum("role", ["membre", "confirme", "moderateur", "admin"]);
-// « a_verifier » : point repris d'une source qui n'est pas Forever (Classic), invisible sur le site tant
-// qu'un relevé en jeu ne l'a pas confirmé.
+// « a_verifier » : point invisible sur le site : PNJ de Classic pas encore confirmé par un relevé en jeu,
+// ou point des relevés que plus aucun relevé accepté ne soutient.
 export const poiStatusEnum = pgEnum("poi_status", ["publie", "masque", "a_verifier"]);
 export const contributionTypeEnum = pgEnum("contribution_type", ["creation", "modification", "suppression"]);
 export const contributionStatusEnum = pgEnum("contribution_status", ["en_attente", "acceptee", "refusee", "conflit"]);
